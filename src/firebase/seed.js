@@ -8,6 +8,7 @@ const initialProducts = [
     description: "Salsa de tomate, mozzarella fior di latte, albahaca fresca y aceite de oliva.",
     price: 10.50,
     category: "Pizzas",
+    sectionId: "sec-horno",
     imageUrl: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?q=80&w=600&auto=format&fit=crop",
     allergenIds: ["all-gluten", "all-lactosa"],
     baseIngredients: "Salsa de tomate, mozzarella fior di latte, albahaca fresca y aceite de oliva.",
@@ -28,6 +29,7 @@ const initialProducts = [
     description: "Extra de pepperoni crujiente, mozzarella fundida y salsa de tomate casera.",
     price: 13.00,
     category: "Pizzas",
+    sectionId: "sec-horno",
     imageUrl: "https://images.unsplash.com/photo-1628840042765-356cda07504e?q=80&w=600&auto=format&fit=crop",
     allergenIds: ["all-gluten", "all-lactosa"],
     baseIngredients: "Salsa de tomate casera, mozzarella fundida y extra de pepperoni.",
@@ -48,6 +50,7 @@ const initialProducts = [
     description: "Ternera especiada, bacon, cebolla roja, mozzarella y salsa barbacoa.",
     price: 14.50,
     category: "Pizzas",
+    sectionId: "sec-horno",
     imageUrl: "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=600&auto=format&fit=crop",
     allergenIds: ["all-gluten", "all-lactosa"],
     baseIngredients: "Salsa barbacoa, mozzarella, ternera especiada, bacon y cebolla roja.",
@@ -69,6 +72,7 @@ const initialProducts = [
     description: "Deliciosos palitos de masa rellenos de queso fundido, con salsa de ajo.",
     price: 6.50,
     category: "Entrantes",
+    sectionId: "sec-horno",
     imageUrl: "https://images.unsplash.com/photo-1623341214825-9f4f963727da?q=80&w=600&auto=format&fit=crop",
     allergenIds: ["all-gluten", "all-lactosa", "all-huevos"],
     baseIngredients: "Masa rellena de queso fundido, con salsa de ajo.",
@@ -81,12 +85,18 @@ const initialProducts = [
     description: "Lata 33cl",
     price: 2.50,
     category: "Bebidas",
+    sectionId: "sec-bar",
     imageUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=600&auto=format&fit=crop",
     allergenIds: [],
     baseIngredients: "",
     ingredients: [],
     extraIngredients: []
   }
+];
+
+const initialSections = [
+  { id: "sec-horno", name: "Horno / Cocina Caliente", columns: ["Pendiente", "Preparando", "Horno", "Listo"] },
+  { id: "sec-bar", name: "Bar / Bebidas", columns: ["Pendiente", "Listo"] }
 ];
 
 const initialCategories = [
@@ -120,6 +130,7 @@ export const seedProductsIfEmpty = async () => {
       initialCategories.forEach((c) => batch.set(doc(collection(db, "categories"), c.id), c));
       initialAllergens.forEach((a) => batch.set(doc(collection(db, "allergens"), a.id), a));
       initialIngredients.forEach((i) => batch.set(doc(collection(db, "ingredients"), i.id), i));
+      initialSections.forEach((s) => batch.set(doc(collection(db, "preparation_sections"), s.id), s));
       
       await batch.commit();
       console.log("Productos Fase 7 inicializados exitosamente.");
@@ -138,10 +149,11 @@ export const forceSeedProducts = async () => {
     initialCategories.forEach((c) => batch.set(doc(collection(db, "categories"), c.id), c));
     initialAllergens.forEach((a) => batch.set(doc(collection(db, "allergens"), a.id), a));
     initialIngredients.forEach((i) => batch.set(doc(collection(db, "ingredients"), i.id), i));
+    initialSections.forEach((s) => batch.set(doc(collection(db, "preparation_sections"), s.id), s));
     
     await batch.commit();
     console.log("Datos re-inicializados exitosamente.");
-    alert("Base de datos actualizada con éxito (Categorías, Productos, Alérgenos). Por favor recarga la página.");
+    alert("Base de datos actualizada con éxito (Categorías, Productos, Alérgenos, Secciones). Por favor recarga la página.");
   } catch (error) {
     console.error("Error forzando inicialización de datos:", error);
     alert("Error al actualizar la base de datos.");

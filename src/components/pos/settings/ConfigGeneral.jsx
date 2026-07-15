@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
-import { Save, Info, MapPin, Store } from 'lucide-react';
+import { Save, Info, MapPin, Store, Clock } from 'lucide-react';
 
 const ConfigGeneral = () => {
   const [settings, setSettings] = useState({
@@ -10,7 +10,8 @@ const ConfigGeneral = () => {
     deliveryFee: 2.50,
     deliveryType: 'postal_codes', // 'postal_codes' o 'km'
     maxRadiusKm: 5,
-    postalCodes: '11001, 11002, 11003'
+    postalCodes: '11001, 11002, 11003',
+    orderAlarmMinutes: 15
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -74,6 +75,15 @@ const ConfigGeneral = () => {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Dirección Física (Origen)</label>
             <textarea name="originAddress" value={settings.originAddress} onChange={handleChange} rows="2" className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none resize-none" />
+          </div>
+
+          <div className="pt-4 border-t border-gray-100">
+            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-red-500" />
+              Alarma de Tiempo en Cocina (Minutos)
+            </label>
+            <p className="text-xs text-gray-500 mb-3">Si un pedido supera este tiempo desde su creación, su tarjeta parpadeará en rojo en el Kanban para alertar a la cocina.</p>
+            <input type="number" name="orderAlarmMinutes" value={settings.orderAlarmMinutes} onChange={handleChange} className="w-full sm:w-1/2 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none" />
           </div>
         </div>
 

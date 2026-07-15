@@ -95,7 +95,9 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
           name: item.name,
           quantity: item.quantity,
           price: item.price,
-          modifiers: item.modifiers || ''
+          modifiers: item.modifiers || '',
+          sectionId: item.sectionId || '',
+          status: 'PENDING'
         })),
         subtotal,
         total,

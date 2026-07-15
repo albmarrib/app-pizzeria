@@ -7,26 +7,29 @@ const ProductsManager = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [allergens, setAllergens] = useState([]);
+  const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [isEditing, setIsEditing] = useState(false);
   const [currentProd, setCurrentProd] = useState({ 
-    id: null, name: '', description: '', price: 0, category: '', imageUrl: '', 
+    id: null, name: '', description: '', price: 0, category: '', sectionId: '', imageUrl: '', 
     order: 0, baseIngredients: '', allergenIds: [], customizable: true 
   });
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [prodSnap, catSnap, allSnap] = await Promise.all([
+      const [prodSnap, catSnap, allSnap, secSnap] = await Promise.all([
         getDocs(collection(db, 'products')),
         getDocs(collection(db, 'categories')),
-        getDocs(collection(db, 'allergens'))
+        getDocs(collection(db, 'allergens')),
+        getDocs(collection(db, 'preparation_sections'))
       ]);
       
       const cats = catSnap.docs.map(d => d.data().name);
       setCategories(cats);
       setAllergens(allSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setSections(secSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       
       setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a,b) => ((a.category || '').localeCompare(b.category || '')) || ((a.order || 0) - (b.order || 0))));
@@ -49,6 +52,7 @@ const ProductsManager = () => {
         description: currentProd.description,
         price: parseFloat(currentProd.price) || 0,
         category: currentProd.category,
+        sectionId: currentProd.sectionId || '',
         imageUrl: currentProd.imageUrl,
         order: parseInt(currentProd.order) || 0,
         baseIngredients: currentProd.baseIngredients || '',
@@ -90,7 +94,7 @@ const ProductsManager = () => {
         <h2 className="text-xl font-bold text-gray-900">Gestión de Carta (Productos)</h2>
         {!isEditing && (
           <button onClick={() => { 
-            setCurrentProd({ id: null, name: '', description: '', price: 0, category: categories[0] || '', imageUrl: '', order: 0, baseIngredients: '', allergenIds: [], customizable: true }); 
+            setCurrentProd({ id: null, name: '', description: '', price: 0, category: categories[0] || '', sectionId: '', imageUrl: '', order: 0, baseIngredients: '', allergenIds: [], customizable: true }); 
             setIsEditing(true); 
           }} className="bg-black text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-bold">
             <Plus className="w-4 h-4" /> Añadir Producto
@@ -114,6 +118,13 @@ const ProductsManager = () => {
               <select value={currentProd.category} onChange={e=>setCurrentProd({...currentProd, category:e.target.value})} className="w-full p-2 border border-gray-300 rounded" required>
                 <option value="">Selecciona...</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold mb-1">Sección de Preparación</label>
+              <select value={currentProd.sectionId || ''} onChange={e=>setCurrentProd({...currentProd, sectionId:e.target.value})} className="w-full p-2 border border-gray-300 rounded" required>
+                <option value="">Selecciona...</option>
+                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
@@ -181,6 +192,13 @@ const ProductsManager = () => {
                           <span className="font-bold text-gray-900">{p.price.toFixed(2)}€</span>
                         </div>
                         <p className="text-xs text-gray-500 mt-1 line-clamp-1">{p.baseIngredients || p.description}</p>
+                        {p.sectionId && (
+                          <div className="mt-1 flex">
+                            <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                              {sections.find(s => s.id === p.sectionId)?.name || 'Sección desconocida'}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={()=>{setCurrentProd(p); setIsEditing(true);}} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Edit2 className="w-4 h-4"/></button>

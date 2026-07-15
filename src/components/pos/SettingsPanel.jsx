@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import ConfigGeneral from './settings/ConfigGeneral';
 import CategoriesManager from './settings/CategoriesManager';
+import SectionsManager from './settings/SectionsManager';
 import ProductsManager from './settings/ProductsManager';
 import IngredientsManager from './settings/IngredientsManager';
-import { Store, ListTree, Package, Leaf } from 'lucide-react';
+import { Store, ListTree, Package, Leaf, LayoutGrid } from 'lucide-react';
 
 const SettingsPanel = () => {
   const [activeSubTab, setActiveSubTab] = useState('general');
@@ -31,6 +32,12 @@ const SettingsPanel = () => {
           <Package className="w-4 h-4" /> Productos
         </button>
         <button 
+          onClick={() => setActiveSubTab('sections')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${activeSubTab === 'sections' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+        >
+          <LayoutGrid className="w-4 h-4" /> Secciones
+        </button>
+        <button 
           onClick={() => setActiveSubTab('extras')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${activeSubTab === 'extras' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
         >
@@ -43,6 +50,7 @@ const SettingsPanel = () => {
         <div className="max-w-5xl mx-auto">
           {activeSubTab === 'general' && <ConfigGeneral />}
           {activeSubTab === 'categories' && <CategoriesManager />}
+          {activeSubTab === 'sections' && <SectionsManager />}
           {activeSubTab === 'products' && <ProductsManager />}
           {activeSubTab === 'extras' && <IngredientsManager />}
         </div>

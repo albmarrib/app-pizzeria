@@ -56,7 +56,7 @@ const ProductModal = ({ product, onClose, onAdd }) => {
     });
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (openCart) => {
     // Generate a unique ID for this specific configuration
     const configId = `${product.id}-${Array.from(addedExtras).sort().join('-')}`;
     
@@ -74,7 +74,7 @@ const ProductModal = ({ product, onClose, onAdd }) => {
       modifiers: modifiersText.join(' | ')
     };
 
-    onAdd(productToAdd);
+    onAdd(productToAdd, openCart);
   };
 
   return (
@@ -141,11 +141,11 @@ const ProductModal = ({ product, onClose, onAdd }) => {
           )}
 
           {/* Extras del SaaS */}
-          {product.customizable !== false && availableExtras.length > 0 && (
+          {product.customizable === true && availableExtras.length > 0 && (
             <div className="mb-6">
               <details className="group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <summary className="flex items-center justify-between p-4 cursor-pointer list-none font-black text-gray-900 uppercase tracking-widest text-sm">
-                  <span>Añadir Extras Opcionales</span>
+                  <span>Añadir ingredientes opcionales</span>
                   <span className="transition group-open:rotate-180">
                     <svg fill="none" height="24" shapeRendering="geometricPrecision" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
                   </span>
@@ -173,8 +173,8 @@ const ProductModal = ({ product, onClose, onAdd }) => {
 
         {/* Footer Actions */}
         <div className="p-4 sm:p-6 border-t border-gray-100 bg-white">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center bg-gray-100 rounded-2xl p-1.5 shadow-inner">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex w-full sm:w-auto items-center justify-center bg-gray-100 rounded-2xl p-1.5 shadow-inner">
               <button 
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
                 className="w-12 h-12 flex items-center justify-center text-xl text-gray-600 hover:bg-white hover:text-black hover:shadow-md rounded-xl transition-all"
@@ -190,14 +190,22 @@ const ProductModal = ({ product, onClose, onAdd }) => {
               </button>
             </div>
             
-            <button 
-              onClick={handleAddToCart}
-              className="flex-1 bg-black hover:bg-gray-900 text-white font-black text-lg py-4 rounded-2xl shadow-xl shadow-black/20 transition-all flex items-center justify-center gap-3"
-            >
-              <span>Añadir al Carrito</span>
-              <span className="w-1.5 h-1.5 bg-white/30 rounded-full"></span>
-              <span>{totalPrice.toFixed(2)}€</span>
-            </button>
+            <div className="flex flex-col w-full sm:flex-row gap-2 sm:gap-4 flex-1">
+              <button 
+                onClick={() => handleAddToCart(false)}
+                className="flex-1 bg-white hover:bg-gray-50 text-black border-2 border-black font-black text-sm py-3 sm:py-4 rounded-2xl transition-all flex items-center justify-center"
+              >
+                Añadir y seguir comprando
+              </button>
+              <button 
+                onClick={() => handleAddToCart(true)}
+                className="flex-1 bg-black hover:bg-gray-900 text-white font-black text-sm py-3 sm:py-4 rounded-2xl shadow-xl shadow-black/20 transition-all flex items-center justify-center gap-2"
+              >
+                <span>Añadir e ir a pagar</span>
+                <span className="w-1.5 h-1.5 bg-white/30 rounded-full hidden sm:block"></span>
+                <span className="hidden sm:inline">{totalPrice.toFixed(2)}€</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

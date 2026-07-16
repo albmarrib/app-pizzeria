@@ -13,14 +13,14 @@ const generateOrderCode = () => {
   return result;
 };
 
-const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
+const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orderType, setOrderType, isPosMode = false }) => {
   const [step, setStep] = useState(1); // 1: Carrito, 2: Datos
-  const [orderType, setOrderType] = useState('delivery'); // 'delivery' o 'pickup'
   
   // Datos del formulario
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
+    email: '',
     address: '',
     postalCode: '',
     notes: ''
@@ -60,27 +60,25 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
   const handleCheckout = async (paymentMethodMock = 'cash') => {
     if (cart.length === 0) return;
     
-    // Validaciones
-    if (orderType === 'pickup' && !customerInfo.name.trim()) {
-      return alert("El nombre es obligatorio para recoger en tienda.");
-    }
-    if (orderType === 'delivery') {
-      if (!customerInfo.name.trim() || !customerInfo.address.trim() || !customerInfo.phone.trim() || !customerInfo.postalCode.trim()) {
-        return alert("Por favor, rellena nombre, teléfono, dirección y código postal.");
+    if (!isPosMode) {
+      if (orderType === 'pickup' && (!customerInfo.name.trim() || !customerInfo.email.trim() || !customerInfo.phone.trim())) {
+        return alert("El nombre, email y teléfono son obligatorios para recoger en tienda.");
       }
-      
-      // Validación real de SaaS
-      const docSnap = await getDoc(doc(db, 'settings', 'general'));
-      const settings = docSnap.exists() ? docSnap.data() : {};
-      
-      if (settings.deliveryType === 'postal_codes') {
-        const validCodes = (settings.postalCodes || '').split(',').map(c => c.trim());
-        if (!validCodes.includes(customerInfo.postalCode.trim())) {
-          return alert(`Lo sentimos, no repartimos en el código postal ${customerInfo.postalCode}.`);
+      if (orderType === 'delivery') {
+        if (!customerInfo.name.trim() || !customerInfo.address.trim() || !customerInfo.phone.trim() || !customerInfo.email.trim() || !customerInfo.postalCode.trim()) {
+          return alert("Por favor, rellena nombre, email, teléfono, dirección y código postal.");
         }
-      } else if (settings.deliveryType === 'km') {
-        // En un caso real aquí llamaríamos a Google Maps API para ver la distancia.
-        // Por MVP lo damos por válido asumiendo que el cliente sabe.
+        
+        // Validación real de SaaS
+        const docSnap = await getDoc(doc(db, 'settings', 'general'));
+        const settings = docSnap.exists() ? docSnap.data() : {};
+        
+        if (settings.deliveryType === 'postal_codes') {
+          const validCodes = (settings.postalCodes || '').split(',').map(c => c.trim());
+          if (!validCodes.includes(customerInfo.postalCode.trim())) {
+            return alert(`Lo sentimos, no repartimos en el código postal ${customerInfo.postalCode}.`);
+          }
+        }
       }
     }
 
@@ -107,21 +105,45 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
         orderCode: code,
         paymentStatus: isPaid ? 'Pagado' : 'Pendiente',
         paymentMethod: paymentMethodMock,
-        status: 'Nuevos Pedidos', 
-        source: 'Customer Web',
+        status: isPosMode ? 'En Cocina' : 'Nuevos Pedidos', 
+        source: isPosMode ? 'Local/POS' : 'Customer Web',
         createdAt: serverTimestamp()
       };
       
       await addDoc(collection(db, 'orders'), orderData);
+
+      // Save customer to CRM
+      if (customerInfo.email && customerInfo.phone) {
+        try {
+          const customerData = {
+            name: customerInfo.name,
+            email: customerInfo.email,
+            phone: customerInfo.phone,
+            address: customerInfo.address || '',
+            postalCode: customerInfo.postalCode || '',
+            lastOrderDate: serverTimestamp(),
+            source: 'Customer Web'
+          };
+          // Just add a new customer doc for MVP. A real app would check if they exist by email/phone to merge.
+          await addDoc(collection(db, 'customers'), customerData);
+        } catch (crmError) {
+          console.error("Error saving to CRM: ", crmError);
+        }
+      }
       
       if (code) setOrderCode(code);
       setOrderSuccess(true);
       
       // Si es a domicilio, cerramos en 4s. Si es recoger, dejamos la tarjeta a la vista
-      if (orderType === 'delivery') {
+      if (orderType === 'delivery' && !isPosMode) {
         setTimeout(() => {
           handleClose();
         }, 4000);
+      } else if (isPosMode) {
+        // En POS cerramos rápido
+        setTimeout(() => {
+          handleClose();
+        }, 2000);
       }
       
     } catch (error) {
@@ -175,13 +197,14 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
             {orderType === 'pickup' ? (
               <div className="bg-white rounded-3xl p-8 shadow-xl text-center border-t-8 border-black">
                 <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h3 className="text-2xl font-black text-gray-900 mb-2">¡Pagado y Confirmado!</h3>
-                <p className="text-gray-500 mb-8">Acércate al mostrador cuando te avisemos y muestra este código:</p>
+                <h3 className="text-2xl font-black text-gray-900 mb-2">¡Pedido Confirmado!</h3>
+                {!isPosMode && <p className="text-gray-500 mb-8">Acércate al mostrador cuando te avisemos y muestra este código:</p>}
+                {isPosMode && <p className="text-gray-500 mb-8">El pedido ha sido enviado a cocina.</p>}
                 <div className="bg-gray-100 py-6 px-4 rounded-2xl mb-8">
                   <span className="text-4xl md:text-5xl font-black tracking-widest text-black">{orderCode}</span>
                 </div>
                 <button onClick={handleClose} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-xl transition-colors">
-                  Cerrar
+                  {isPosMode ? 'Nuevo Pedido' : 'Cerrar'}
                 </button>
               </div>
             ) : (
@@ -213,6 +236,14 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
                   <Store className="w-4 h-4" />
                   Recoger local
                 </button>
+                {isPosMode && (
+                  <button 
+                    onClick={() => setOrderType('mesa')}
+                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${orderType === 'mesa' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                  >
+                    Mesa / Tomar aquí
+                  </button>
+                )}
               </div>
 
               {cart.map((item) => (
@@ -249,13 +280,31 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
                 <span className="text-gray-500 font-bold">Subtotal</span>
                 <span className="text-2xl font-black text-gray-900">{subtotal.toFixed(2)}€</span>
               </div>
-              <button 
-                onClick={() => setStep(2)}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-between px-6 transition-colors shadow-lg shadow-red-600/30"
-              >
-                <span>Continuar</span>
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={() => {
+                    onEmptyCart();
+                    handleClose();
+                  }}
+                  className="p-4 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-500 rounded-xl transition-colors"
+                  title="Vaciar carrito"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={handleClose}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-xl flex items-center justify-center transition-colors"
+                >
+                  Seguir comprando
+                </button>
+                <button 
+                  onClick={() => setStep(2)}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-red-600/30"
+                >
+                  <span>Pedir</span>
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </button>
+              </div>
             </div>
           </>
         ) : (
@@ -273,15 +322,26 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <User className="h-5 w-5" />
                   </div>
-                  <input type="text" name="name" value={customerInfo.name} onChange={handleInputChange} placeholder="Nombre completo" className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
+                  <input type="text" name="name" value={customerInfo.name} onChange={handleInputChange} placeholder={isPosMode ? "Nombre (Opcional)" : "Nombre completo"} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
                 </div>
                 
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                    <Phone className="h-5 w-5" />
-                  </div>
-                  <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder="Teléfono de contacto" className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
-                </div>
+                {!isPosMode && (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <Phone className="h-5 w-5" />
+                      </div>
+                      <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder="Teléfono de contacto" className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                      </div>
+                      <input type="email" name="email" value={customerInfo.email} onChange={handleInputChange} placeholder="Correo electrónico" className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
+                    </div>
+                  </>
+                )}
 
                 {/* Campos específicos Delivery */}
                 {orderType === 'delivery' && (
@@ -326,7 +386,17 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity }) => {
                 </div>
               </div>
               
-              {orderType === 'pickup' ? (
+              {isPosMode ? (
+                <div className="space-y-3">
+                  <button onClick={() => handleCheckout('cash')} disabled={isCheckingOut} className="w-full bg-black hover:bg-gray-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
+                    <span>Cobrar Efectivo</span>
+                  </button>
+                  <button onClick={() => handleCheckout('card')} disabled={isCheckingOut} className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-900 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
+                    <CreditCard className="w-5 h-5" />
+                    <span>Cobrar con Tarjeta</span>
+                  </button>
+                </div>
+              ) : orderType === 'pickup' ? (
                 <div className="space-y-3">
                   <div className="text-xs text-center text-gray-500 font-semibold mb-2">PAGO OBLIGATORIO PARA RECOGER</div>
                   <button onClick={() => handleCheckout('apple_pay')} disabled={isCheckingOut} className="w-full bg-black hover:bg-gray-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">

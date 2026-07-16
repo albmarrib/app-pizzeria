@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../../../firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../../firebase/config';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 
 const ProductsManager = () => {
@@ -13,8 +14,9 @@ const ProductsManager = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentProd, setCurrentProd] = useState({ 
     id: null, name: '', description: '', price: 0, category: '', sectionId: '', imageUrl: '', 
-    order: 0, baseIngredients: '', allergenIds: [], customizable: true 
+    order: 0, baseIngredients: '', allergenIds: [], customizable: false, outOfStock: false
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -57,7 +59,8 @@ const ProductsManager = () => {
         order: parseInt(currentProd.order) || 0,
         baseIngredients: currentProd.baseIngredients || '',
         allergenIds: currentProd.allergenIds || [],
-        customizable: currentProd.customizable ?? true
+        customizable: currentProd.customizable ?? true,
+        outOfStock: currentProd.outOfStock || false
       };
 
       if (currentProd.id) {
@@ -86,6 +89,35 @@ const ProductsManager = () => {
       const ids = prev.allergenIds || [];
       return { ...prev, allergenIds: ids.includes(allId) ? ids.filter(id => id !== allId) : [...ids, allId] };
     });
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+      
+      // Añadimos un timeout de 10 segundos por si Firebase Storage no está configurado
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Tiempo de espera agotado. Verifica que Firebase Storage está habilitado y las reglas permiten escritura.")), 10000)
+      );
+
+      const snapshot = await Promise.race([
+        uploadBytes(storageRef, file),
+        timeoutPromise
+      ]);
+
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      setCurrentProd(prev => ({ ...prev, imageUrl: downloadURL }));
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      alert("Error al subir: " + (error.message || "Verifica Firebase Storage."));
+    } finally {
+      setUploadingImage(false);
+      e.target.value = ''; // Limpiar el input file
+    }
   };
 
   return (
@@ -138,9 +170,32 @@ const ProductsManager = () => {
                 <label htmlFor="cust" className="ml-2 font-medium">Sí</label>
               </div>
             </div>
+            <div>
+              <label className="block text-sm font-bold mb-1 text-red-600">Agotado Temporalmente</label>
+              <div className="mt-2">
+                <input type="checkbox" checked={currentProd.outOfStock} onChange={e=>setCurrentProd({...currentProd, outOfStock:e.target.checked})} id="oos"/>
+                <label htmlFor="oos" className="ml-2 font-medium text-red-600">Sí (Bloquear en web)</label>
+              </div>
+            </div>
             <div className="md:col-span-3">
-              <label className="block text-sm font-bold mb-1">URL de la Imagen (cuadrada idealmente)</label>
-              <input type="text" value={currentProd.imageUrl} onChange={e=>setCurrentProd({...currentProd, imageUrl:e.target.value})} className="w-full p-2 border border-gray-300 rounded" placeholder="https://..."/>
+              <label className="block text-sm font-bold mb-1">Imagen (Sube un archivo o introduce URL)</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="file" 
+                  accept="image/jpeg, image/png, image/webp" 
+                  onChange={handleImageUpload} 
+                  disabled={uploadingImage}
+                  className="w-full sm:w-1/2 p-2 border border-gray-300 rounded file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100" 
+                />
+                <input 
+                  type="text" 
+                  value={currentProd.imageUrl} 
+                  onChange={e=>setCurrentProd({...currentProd, imageUrl:e.target.value})} 
+                  className="w-full sm:w-1/2 p-2 border border-gray-300 rounded" 
+                  placeholder="O introduce una URL: https://..."
+                />
+              </div>
+              {uploadingImage && <p className="text-sm text-red-600 mt-1">Subiendo imagen...</p>}
             </div>
             <div className="md:col-span-3">
               <label className="block text-sm font-bold mb-1">Descripción corta (Aparece bajo la foto en el menú)</label>
@@ -167,7 +222,7 @@ const ProductsManager = () => {
           </div>
           <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-200">
             <button type="button" onClick={()=>setIsEditing(false)} className="px-4 py-2 font-bold text-gray-500">Cancelar</button>
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700">Guardar Producto</button>
+            <button type="submit" disabled={uploadingImage} className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700 disabled:opacity-50">Guardar Producto</button>
           </div>
         </form>
       )}
@@ -182,13 +237,14 @@ const ProductsManager = () => {
                 <h3 className="font-black text-gray-400 uppercase tracking-widest text-xs mb-3">{cat}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {catProds.map(p => (
-                    <div key={p.id} className="flex p-3 border border-gray-100 rounded-xl bg-gray-50/50 hover:bg-gray-50 group transition-colors">
-                      <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden shrink-0 mr-3">
+                    <div key={p.id} onClick={()=>{setCurrentProd(p); setIsEditing(true);}} className={`flex p-3 border rounded-xl hover:bg-gray-50 group transition-colors cursor-pointer ${p.outOfStock ? 'bg-red-50/50 border-red-100 opacity-70' : 'bg-gray-50/50 border-gray-100'}`}>
+                      <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden shrink-0 mr-3 relative">
                         {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover"/>}
+                        {p.outOfStock && <div className="absolute inset-0 bg-red-600/50 flex items-center justify-center text-[8px] font-black text-white px-1 text-center">AGOTADO</div>}
                       </div>
                       <div className="flex-1 flex flex-col justify-center">
                         <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-gray-900 leading-none">{p.name}</h4>
+                          <h4 className="font-bold text-gray-900 leading-none">{p.name} {p.outOfStock && <span className="text-red-600 text-xs ml-1">(Agotado)</span>}</h4>
                           <span className="font-bold text-gray-900">{p.price.toFixed(2)}€</span>
                         </div>
                         <p className="text-xs text-gray-500 mt-1 line-clamp-1">{p.baseIngredients || p.description}</p>
@@ -201,8 +257,7 @@ const ProductsManager = () => {
                         )}
                       </div>
                       <div className="flex flex-col gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={()=>{setCurrentProd(p); setIsEditing(true);}} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Edit2 className="w-4 h-4"/></button>
-                        <button onClick={()=>handleDelete(p.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
+                        <button onClick={(e)=>{e.stopPropagation(); handleDelete(p.id);}} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
                       </div>
                     </div>
                   ))}

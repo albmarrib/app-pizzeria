@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import KanbanBoard from '../components/pos/KanbanBoard';
 import SettingsPanel from '../components/pos/SettingsPanel';
-import { LayoutDashboard, Settings, LogOut, Bell } from 'lucide-react';
+import ManualOrderPanel from '../components/pos/ManualOrderPanel';
+import { LayoutDashboard, Settings, LogOut, Bell, ShoppingBag } from 'lucide-react';
 
 const POSDashboard = () => {
   const [activeTab, setActiveTab] = useState('pedidos');
@@ -20,6 +21,14 @@ const POSDashboard = () => {
         </div>
         
         <nav className="flex-1 py-6 flex flex-col gap-2 px-3">
+          <button 
+            onClick={() => setActiveTab('nuevo_pedido')}
+            className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'nuevo_pedido' ? 'bg-red-50 text-red-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            <ShoppingBag className="w-6 h-6" />
+            <span className="hidden lg:block">Nuevo Pedido</span>
+          </button>
+
           <button 
             onClick={() => setActiveTab('pedidos')}
             className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'pedidos' ? 'bg-red-50 text-red-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
@@ -68,8 +77,10 @@ const POSDashboard = () => {
         </header>
         
         {/* Main Area */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto p-6">
-          {activeTab === 'pedidos' ? <KanbanBoard /> : <SettingsPanel />}
+        <div className="flex-1 overflow-x-auto overflow-y-auto p-6 bg-gray-100">
+          {activeTab === 'nuevo_pedido' && <ManualOrderPanel />}
+          {activeTab === 'pedidos' && <KanbanBoard />}
+          {activeTab === 'configuracion' && <SettingsPanel />}
         </div>
       </main>
     </div>

@@ -1,7 +1,20 @@
 import React from 'react';
 import { ShoppingCart, Menu, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const Navbar = ({ cartCount, onCartClick }) => {
+const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
+  const navigate = useNavigate();
+
+  const handlePosAccess = () => {
+    const password = prompt("Introduce la contraseña para acceder a la zona de restaurante:");
+    const correctPassword = globalSettings?.adminPassword || "1234";
+    if (password === correctPassword) {
+      navigate('/pos');
+    } else if (password !== null) {
+      alert("Contraseña incorrecta");
+    }
+  };
+
   return (
     <nav className="sticky top-0 z-40 bg-white shadow-sm h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8">
       <div className="flex items-center gap-4">
@@ -14,7 +27,10 @@ const Navbar = ({ cartCount, onCartClick }) => {
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="hidden sm:flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+        <button 
+          onClick={handlePosAccess}
+          className="hidden sm:flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+        >
           <User className="w-5 h-5" />
           <span>Zona Restaurante</span>
         </button>

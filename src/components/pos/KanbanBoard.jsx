@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, Eye, User, ShoppingBag, Truck } from 'lucide-react';
+import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, Eye, User, ShoppingBag, Truck, X } from 'lucide-react';
 import { DndContext, useDraggable, useDroppable, closestCenter, DragOverlay, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
 
 const EXPEDITOR_COLUMNS = ['Nuevos Pedidos', 'IN_PROGRESS', 'READY_FOR_ASSEMBLY', 'COMPLETED'];
@@ -42,12 +42,16 @@ const OrderTypeTag = ({ type }) => {
 };
 
 // Droppable Column Component
-const KanbanColumn = ({ id, title, orderCount, children, colorClass }) => {
+const KanbanColumn = ({ id, title, orderCount, children, colorClass, onHeaderClick }) => {
   const { setNodeRef, isOver } = useDroppable({ id });
   
   return (
     <div ref={setNodeRef} className={`flex flex-col flex-shrink-0 w-[22rem] bg-gray-50/50 rounded-2xl border-2 h-full max-h-full transition-colors ${isOver ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`}>
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white rounded-t-xl shadow-sm z-10">
+      <div 
+        onClick={onHeaderClick}
+        className="p-4 border-b border-gray-200 flex items-center justify-between bg-white rounded-t-xl shadow-sm z-10 cursor-pointer hover:bg-gray-50 transition-colors"
+        title="Ver listado detallado"
+      >
         <div className="flex items-center gap-2 font-black text-lg text-gray-800">
           {title}
         </div>
@@ -77,7 +81,8 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     zIndex: 50,
-  } : undefined;
+    touchAction: 'none'
+  } : { touchAction: 'none' };
 
   const getSectionName = (secId) => sections.find(s => s.id === secId)?.name || 'Sin Sección';
 
@@ -207,6 +212,146 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
   );
 };
 
+const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, deleteOrder, now, alarmMinutes }) => {
+  if (!column) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
+      
+      <div className="relative w-full max-w-5xl bg-gray-50 rounded-3xl flex flex-col max-h-[90vh] overflow-hidden shadow-2xl">
+        {/* Header */}
+        <div className="p-6 bg-white border-b border-gray-200 flex justify-between items-center z-10">
+          <div>
+            <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+              {title} 
+              <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-xl text-xl">{orders.length}</span>
+            </h2>
+            <p className="text-gray-500 font-medium mt-1">Listado detallado ordenado por tiempo de espera</p>
+          </div>
+          <button onClick={onClose} className="p-3 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* List Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {orders.map(order => {
+            const elapsedMs = now.getTime() - order.createdAt.getTime();
+            const elapsedMinutes = Math.floor(elapsedMs / 60000);
+            const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
+            const isAlarmTriggered = elapsedMinutes >= alarmMinutes;
+
+            return (
+              <div key={order.id} className={`bg-white p-3 sm:p-4 rounded-xl border shadow-sm flex flex-col md:flex-row gap-4 ${isAlarmTriggered ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`}>
+                {/* Info Lateral */}
+                <div className="flex-shrink-0 w-full md:w-48 flex flex-col justify-between gap-2">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <OrderTypeTag type={order.orderType} />
+                      <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                        #{order.id.slice(-4)}
+                      </span>
+                    </div>
+                    <div className="font-black text-lg text-gray-900 break-words leading-tight">
+                      {order.customerInfo?.name || 'Cliente'}
+                    </div>
+                    <div className={`flex items-center gap-1 text-sm font-bold mt-1 ${isAlarmTriggered ? 'text-red-600' : 'text-gray-500'}`}>
+                      <Clock className="w-3 h-3" />
+                      <span>{elapsedMinutes}m {elapsedSeconds}s</span>
+                    </div>
+                  </div>
+                  
+                  {isExpeditor && column === 'READY_FOR_ASSEMBLY' && (
+                    <button 
+                      onClick={async () => {
+                        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'COMPLETED' } : o));
+                        await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
+                      }}
+                      className="bg-black hover:bg-gray-800 text-white font-bold py-1.5 px-2 rounded-lg flex items-center justify-center text-xs mt-2 transition-colors"
+                    >
+                      <CheckCircle2 className="w-3 h-3 mr-1" /> Marcar Completado
+                    </button>
+                  )}
+                  
+                  <button 
+                    onClick={() => deleteOrder(order.id)}
+                    className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center text-xs transition-colors border border-red-100"
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" /> Eliminar Pedido
+                  </button>
+                </div>
+                
+                {/* Productos y Controles */}
+                <div className="flex-1 flex flex-col gap-2 border-t md:border-t-0 md:border-l border-gray-100 pt-3 md:pt-0 md:pl-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    {order.items?.map((item, idx) => {
+                      if (!isExpeditor && item.sectionId !== activeView) return null;
+                      const itemStatus = item.status || (isExpeditor ? 'PENDING' : activeSectionColumns[0]);
+
+                      return (
+                        <div key={idx} className="bg-gray-50 p-2 rounded-lg border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex-1">
+                            <div className="text-sm font-black text-gray-900 flex items-start gap-2">
+                              <span className="bg-white border border-gray-200 px-1.5 py-0.5 rounded text-red-600">{item.quantity}x</span>
+                              <span className="leading-tight mt-0.5">{item.name}</span>
+                            </div>
+                            {item.modifiers && (
+                              <span className="text-xs text-red-600 font-bold ml-8 mt-0.5 block">
+                                {item.modifiers}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Controles del Listado */}
+                          {!isExpeditor && (
+                            <div className="flex items-center gap-1 ml-8 sm:ml-0 shrink-0">
+                              <button 
+                                onClick={() => moveItem(order, idx, itemStatus, -1)}
+                                disabled={itemStatus === activeSectionColumns[0]}
+                                className="px-3 py-1.5 text-xs font-black bg-white text-gray-500 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all border border-gray-200"
+                              >
+                                &lt; Atrás
+                              </button>
+                              <button 
+                                onClick={() => moveItem(order, idx, itemStatus, 1)}
+                                disabled={itemStatus === activeSectionColumns[activeSectionColumns.length - 1]}
+                                className="px-3 py-1.5 text-xs font-black bg-green-500 text-white shadow-sm shadow-green-500/20 rounded hover:bg-green-600 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all border border-green-600 min-w-[90px]"
+                              >
+                                {itemStatus === activeSectionColumns[activeSectionColumns.length - 1] ? 'Completado' : 'Avanzar >'}
+                              </button>
+                            </div>
+                          )}
+                          {isExpeditor && (
+                             <span className={`text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-wider ${isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                               {itemStatus}
+                             </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {order.notes && (
+                    <div className="text-sm p-3 bg-yellow-50 text-yellow-900 rounded-xl border border-yellow-200">
+                      <span className="font-black">Notas del cliente:</span> {order.notes}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {orders.length === 0 && (
+            <div className="text-center py-20 text-gray-500 text-lg font-medium">
+              No hay pedidos en esta columna.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const KanbanBoard = () => {
   const [orders, setOrders] = useState([]);
   const [sections, setSections] = useState([]);
@@ -216,6 +361,7 @@ const KanbanBoard = () => {
   
   const [activeView, setActiveView] = useState('expeditor');
   const [activeDragId, setActiveDragId] = useState(null);
+  const [modalColumn, setModalColumn] = useState(null); // 'Nuevos Pedidos', etc.
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -295,10 +441,18 @@ const KanbanBoard = () => {
     
     if (newIndex >= 0 && newIndex < activeColumns.length) {
       const newStatus = activeColumns[newIndex];
-      const newItems = [...order.items];
-      newItems[itemIndex].status = newStatus;
+      // Deep copy to prevent React state mutation by reference before Firebase update
+      const newItems = order.items.map((item, idx) => {
+        if (idx === itemIndex) {
+          return { ...item, status: newStatus };
+        }
+        return { ...item };
+      });
       
       const newOrderStatus = deriveOrderStatus(newItems);
+      
+      // Optimistic update
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, items: newItems, status: newOrderStatus } : o));
       
       try {
         await updateDoc(doc(db, 'orders', order.id), { 
@@ -348,13 +502,16 @@ const KanbanBoard = () => {
 
     if (activeView === 'expeditor') {
       if (currentColumn === 'READY_FOR_ASSEMBLY' && targetColumn === 'COMPLETED') {
+        // Optimistic update
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'COMPLETED' } : o));
+        
         try {
           await updateDoc(doc(db, 'orders', orderId), { status: 'COMPLETED' });
         } catch (err) {
-          alert("Error actualizando Firebase: " + err.message);
+          console.error("Error actualizando Firebase: " + err.message);
         }
       } else {
-        alert("En la Mesa de Pase (General) los pedidos avanzan automáticamente cuando la cocina termina sus partes. Solo puedes arrastrar manualmente a 'Completados' cuando lo entregues al cliente o repartidor.");
+        alert("En la Mesa de Pase, los pedidos avanzan automáticamente a 'Para Ensamblar' cuando todas las secciones terminan. Solo puedes arrastrar manualmente a 'Completados'.");
       }
     } else {
       // Section View bulk update
@@ -367,10 +524,13 @@ const KanbanBoard = () => {
         if (item.sectionId === activeView) {
           return { ...item, status: targetColumn };
         }
-        return item;
+        return { ...item };
       });
 
       const newOrderStatus = deriveOrderStatus(newItems);
+
+      // Optimistic update
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, items: newItems, status: newOrderStatus } : o));
 
       try {
         await updateDoc(doc(db, 'orders', orderId), { 
@@ -378,7 +538,7 @@ const KanbanBoard = () => {
           status: newOrderStatus
         });
       } catch (err) {
-        alert("Error guardando en Firebase: " + err.message);
+        console.error("Error guardando en Firebase: " + err.message);
       }
     }
   };
@@ -439,7 +599,14 @@ const KanbanBoard = () => {
             }
             
             return (
-              <KanbanColumn key={column} id={column} title={getColumnTitle(column)} orderCount={columnOrders.length} colorClass={getColumnColor(column)}>
+              <KanbanColumn 
+                key={column} 
+                id={column} 
+                title={getColumnTitle(column)} 
+                orderCount={columnOrders.length} 
+                colorClass={getColumnColor(column)}
+                onHeaderClick={() => setModalColumn(column)}
+              >
                 {columnOrders.map((order) => (
                   <OrderCard 
                     key={order.id} 
@@ -479,6 +646,37 @@ const KanbanBoard = () => {
           ) : null}
         </DragOverlay>
       </DndContext>
+      
+      {modalColumn && (
+        <ColumnListModal 
+          column={modalColumn}
+          title={getColumnTitle(modalColumn)}
+          orders={visibleOrders.filter(o => {
+             // Replicate the filtering logic for the column
+             if (isExpeditor) return o.status === modalColumn;
+             
+             const sectionItems = o.items.filter(i => i.sectionId === activeView);
+             let minIndex = activeSectionColumns.length;
+             sectionItems.forEach(i => {
+               const itemStatus = i.status || activeSectionColumns[0];
+               const idx = activeSectionColumns.indexOf(itemStatus);
+               if (idx !== -1 && idx < minIndex) minIndex = idx;
+             });
+             const orderColumn = minIndex < activeSectionColumns.length ? activeSectionColumns[minIndex] : activeSectionColumns[0];
+             return orderColumn === modalColumn;
+          }).sort((a,b) => a.createdAt.getTime() - b.createdAt.getTime())} // Sort oldest first
+          onClose={() => setModalColumn(null)}
+          isExpeditor={isExpeditor}
+          activeView={activeView}
+          sections={sections}
+          activeSectionColumns={activeSectionColumns}
+          isItemReady={isItemReady}
+          moveItem={moveItem}
+          deleteOrder={deleteOrder}
+          now={now}
+          alarmMinutes={alarmMinutes}
+        />
+      )}
     </div>
   );
 };

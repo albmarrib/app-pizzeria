@@ -21,8 +21,8 @@ const MenuGrid = ({ products, onAdd }) => {
     setSelectedProduct(null);
   };
 
-  const handleAddToCart = (productToAdd) => {
-    onAdd(productToAdd);
+  const handleAddToCart = (productToAdd, openCart) => {
+    onAdd(productToAdd, openCart);
     setSelectedProduct(null);
   };
 

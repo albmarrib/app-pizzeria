@@ -17,6 +17,9 @@ const CustomerWeb = () => {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [orderType, setOrderType] = useState('delivery');
+
+  const emptyCart = () => setCart([]);
   
   // 'home' o nombre de la categoría (ej: 'Pizzas', 'Entrantes')
   const [viewState, setViewState] = useState('home'); 
@@ -52,7 +55,7 @@ const CustomerWeb = () => {
     };
   }, []);
 
-  const addToCart = (productToAdd) => {
+  const addToCart = (productToAdd, openCart = true) => {
     setCart((prev) => {
       const existing = prev.find(item => item.cartItemId === productToAdd.cartItemId);
       if (existing) {
@@ -62,7 +65,9 @@ const CustomerWeb = () => {
       }
       return [...prev, productToAdd];
     });
-    setIsCartOpen(true);
+    if (openCart) {
+      setIsCartOpen(true);
+    }
   };
 
   const updateQuantity = (cartItemId, delta) => {
@@ -99,11 +104,11 @@ const CustomerWeb = () => {
 
   return (
     <div className="min-h-screen font-sans relative flex flex-col">
-      <Navbar cartCount={cart.reduce((acc, item) => acc + item.quantity, 0)} onCartClick={() => setIsCartOpen(true)} />
+      <Navbar cartCount={cart.reduce((acc, item) => acc + item.quantity, 0)} onCartClick={() => setIsCartOpen(true)} globalSettings={globalSettings} />
       
       {viewState === 'home' ? (
         <main className="flex-1">
-          <Hero onViewMenu={handleViewMenuFromHome} />
+          <Hero onViewMenu={handleViewMenuFromHome} orderType={orderType} setOrderType={setOrderType} globalSettings={globalSettings} />
           
           {/* Storytelling Section 1: Concept */}
           <section className="py-24 text-center px-4 bg-zinc-900 bg-noise">
@@ -231,7 +236,10 @@ const CustomerWeb = () => {
         onClose={() => setIsCartOpen(false)} 
         cart={cart}
         onUpdateQuantity={updateQuantity}
+        onEmptyCart={emptyCart}
         globalSettings={globalSettings}
+        orderType={orderType}
+        setOrderType={setOrderType}
       />
 
       {/* Botón oculto para forzar recarga de base de datos en caso de errores de estructura */}

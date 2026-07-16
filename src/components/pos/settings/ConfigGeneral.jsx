@@ -11,7 +11,8 @@ const ConfigGeneral = () => {
     deliveryType: 'postal_codes', // 'postal_codes' o 'km'
     maxRadiusKm: 5,
     postalCodes: '11001, 11002, 11003',
-    orderAlarmMinutes: 15
+    orderAlarmMinutes: 15,
+    adminPassword: '1234'
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,6 +85,11 @@ const ConfigGeneral = () => {
             </label>
             <p className="text-xs text-gray-500 mb-3">Si un pedido supera este tiempo desde su creación, su tarjeta parpadeará en rojo en el Kanban para alertar a la cocina.</p>
             <input type="number" name="orderAlarmMinutes" value={settings.orderAlarmMinutes} onChange={handleChange} className="w-full sm:w-1/2 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none" />
+          </div>
+
+          <div className="pt-4 border-t border-gray-100">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Contraseña Zona Restaurante</label>
+            <input type="text" name="adminPassword" value={settings.adminPassword} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none" />
           </div>
         </div>
 

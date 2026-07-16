@@ -13,7 +13,7 @@ const getCategoryIcon = (catName) => {
   return <Utensils className="w-5 h-5" />; // default
 };
 
-const FullMenu = ({ categories, products, onBack, onAdd }) => {
+const FullMenu = ({ categories, products, onBack, onAdd, isPosMode }) => {
   const [activeCategory, setActiveCategory] = useState(categories[0]?.name || '');
 
   // Opcional: Implementar scroll spy para cambiar la categoría activa automáticamente
@@ -22,14 +22,25 @@ const FullMenu = ({ categories, products, onBack, onAdd }) => {
       const sections = categories.map(cat => document.getElementById(`category-${cat.name}`));
       let current = activeCategory;
       
-      // Encontramos la sección que está más visible en pantalla
+      const container = isPosMode ? document.getElementById('pos-scroll-container') : window;
+      const offset = isPosMode ? 100 : 200;
+
       for (const section of sections) {
         if (section) {
           const rect = section.getBoundingClientRect();
-          // Si la parte superior de la sección está cerca del sticky nav (offset ~150px)
-          if (rect.top <= 200 && rect.bottom >= 200) {
-            current = section.id.replace('category-', '');
-            break;
+          // Adjust intersection calculation depending on mode
+          if (isPosMode) {
+             const containerRect = document.getElementById('pos-scroll-container').getBoundingClientRect();
+             const relativeTop = rect.top - containerRect.top;
+             if (relativeTop <= offset && relativeTop + rect.height >= offset) {
+                current = section.id.replace('category-', '');
+                break;
+             }
+          } else {
+             if (rect.top <= offset && rect.bottom >= offset) {
+               current = section.id.replace('category-', '');
+               break;
+             }
           }
         }
       }
@@ -39,16 +50,27 @@ const FullMenu = ({ categories, products, onBack, onAdd }) => {
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [categories, activeCategory]);
+    const container = isPosMode ? document.getElementById('pos-scroll-container') : window;
+    if (container) {
+       container.addEventListener('scroll', handleScroll);
+       return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [categories, activeCategory, isPosMode]);
 
   const scrollToCategory = (catName) => {
     const el = document.getElementById(`category-${catName}`);
     if (el) {
-      // Ajustamos el scroll teniendo en cuenta la altura del sticky nav (aprox 140px con navbar)
-      const y = el.getBoundingClientRect().top + window.scrollY - 140;
-      window.scrollTo({ top: y, behavior: 'smooth' });
+      if (isPosMode) {
+        const container = document.getElementById('pos-scroll-container');
+        // Calculate offset relative to the scrolling container
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const y = elRect.top - containerRect.top + container.scrollTop - 60; // 60px offset for the sticky header
+        container.scrollTo({ top: y, behavior: 'smooth' });
+      } else {
+        const y = el.getBoundingClientRect().top + window.scrollY - 140;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
       setActiveCategory(catName);
     }
   };
@@ -69,7 +91,7 @@ const FullMenu = ({ categories, products, onBack, onAdd }) => {
       )}
 
       {/* Sticky Category Nav */}
-      <div className="sticky top-16 z-30 bg-white shadow-sm border-b border-gray-100 overflow-x-auto hide-scrollbar">
+      <div className={`sticky z-30 bg-white shadow-sm border-b border-gray-100 overflow-x-auto hide-scrollbar ${isPosMode ? 'top-0' : 'top-16'}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-4 min-w-max">
           {categories.map((cat) => (
             <button

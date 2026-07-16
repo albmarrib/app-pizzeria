@@ -21,9 +21,29 @@ const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
         <button className="sm:hidden p-2 text-gray-600 hover:text-gray-900 transition-colors">
           <Menu className="w-6 h-6" />
         </button>
-        <div className="text-2xl font-black tracking-tight text-red-600">
-          SLICE<span className="text-gray-900">SAAS</span>
-        </div>
+        
+        {(() => {
+          const logoUrl = globalSettings?.logoUrl !== undefined ? globalSettings.logoUrl : '/logo.jpg';
+          return (
+            <div className="flex items-center gap-3">
+              {logoUrl && (
+                <img 
+                  src={logoUrl} 
+                  alt={globalSettings?.pizzeriaName || "Logo"} 
+                  className="h-10 w-10 object-contain rounded-md" 
+                />
+              )}
+              <div className="text-2xl font-black tracking-tight text-red-600 hidden sm:block">
+                {globalSettings?.pizzeriaName ? (
+                  globalSettings.pizzeriaName.split(' ')[0]
+                ) : "SLICE"}
+                <span className="text-gray-900">
+                  {globalSettings?.pizzeriaName ? globalSettings.pizzeriaName.split(' ').slice(1).join(' ') : "SAAS"}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="flex items-center gap-4">

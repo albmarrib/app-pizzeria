@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, Eye, User, ShoppingBag, Truck, X } from 'lucide-react';
+import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, Eye, User, ShoppingBag, Truck, Bike, X, Ban, MessageCircle } from 'lucide-react';
 import { DndContext, useDraggable, useDroppable, closestCenter, DragOverlay, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
 
-const EXPEDITOR_COLUMNS = ['Nuevos Pedidos', 'IN_PROGRESS', 'READY_FOR_ASSEMBLY', 'COMPLETED'];
+const EXPEDITOR_COLUMNS = ['Nuevos Pedidos', 'IN_PROGRESS', 'READY_FOR_ASSEMBLY', 'OUT_FOR_DELIVERY'];
 
 const getColumnTitle = (col) => {
   switch (col) {
     case 'Nuevos Pedidos': return 'Nuevos';
     case 'IN_PROGRESS': return 'En Proceso';
     case 'READY_FOR_ASSEMBLY': return 'Para Ensamblar / Entregar';
+    case 'OUT_FOR_DELIVERY': return 'En Reparto';
     case 'COMPLETED': return 'Completados';
     default: return col;
   }
@@ -21,6 +22,7 @@ const getColumnColor = (column) => {
     case 'Nuevos Pedidos': return 'bg-blue-50 border-blue-200';
     case 'IN_PROGRESS': return 'bg-orange-50 border-orange-200';
     case 'READY_FOR_ASSEMBLY': return 'bg-green-50 border-green-200';
+    case 'OUT_FOR_DELIVERY': return 'bg-purple-50 border-purple-200';
     case 'COMPLETED': return 'bg-gray-100 border-gray-300';
     default: return 'bg-gray-50 border-gray-200';
   }
@@ -30,7 +32,7 @@ const OrderTypeTag = ({ type }) => {
   if (type === 'delivery') {
     return (
       <span className="flex items-center gap-1.5 bg-blue-600 text-white font-black px-3 py-1.5 rounded-lg text-sm shadow-sm">
-        <Truck className="w-4 h-4" /> DELIVERY
+        <Bike className="w-4 h-4" /> A DOMICILIO
       </span>
     );
   }
@@ -71,8 +73,17 @@ const KanbanColumn = ({ id, title, orderCount, children, colorClass, onHeaderCli
   );
 };
 
+const getWhatsAppLink = (order) => {
+  if (!order.customerInfo?.phone) return null;
+  let phone = order.customerInfo.phone.replace(/\D/g, '');
+  if (!phone.startsWith('34') && phone.length === 9) phone = '34' + phone; // Asumimos España (34) si no tiene prefijo
+  const url = `${window.location.origin}/pedido/${order.id}`;
+  const text = encodeURIComponent(`¡Hola! Puedes seguir el estado de tu pedido en tiempo real aquí: ${url}`);
+  return `https://wa.me/${phone}?text=${text}`;
+};
+
 // Draggable Order Card Component
-const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, deleteOrder, now, alarmMinutes }) => {
+const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: order.id,
     data: { order, currentColumn: column }
@@ -101,11 +112,11 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
       className={`p-4 rounded-xl border-2 shadow-md flex flex-col gap-3 relative group transition-opacity ${isDragging ? 'opacity-50' : 'opacity-100'} ${getColumnColor(column)} ${isAlarmTriggered && column !== 'COMPLETED' ? 'border-red-500 bg-red-50 animate-pulse' : ''}`}
     >
       <button 
-        onClick={(e) => { e.stopPropagation(); deleteOrder(order.id); }}
+        onClick={(e) => { e.stopPropagation(); cancelOrder(order.id); }}
         className="absolute -top-3 -right-3 bg-white text-red-500 p-2 rounded-full shadow border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:text-red-600 z-10"
-        title="Eliminar Pedido"
+        title="Marcar como Pérdida / Cancelado"
       >
-        <Trash2 className="w-5 h-5" />
+        <Ban className="w-5 h-5" />
       </button>
 
       {/* Header */}
@@ -116,9 +127,11 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
         </span>
       </div>
 
-      <div className="bg-white/60 p-2.5 rounded-lg border border-black/5 flex items-center gap-2">
-        <User className="w-5 h-5 text-gray-500" />
-        <span className="font-black text-gray-900 text-lg truncate">{order.customerInfo?.name || 'Cliente'}</span>
+      <div className="bg-white/60 p-2.5 rounded-lg border border-black/5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <User className="w-5 h-5 text-gray-500" />
+          <span className="font-black text-gray-900 text-lg truncate">{order.customerInfo?.name || 'Cliente'}</span>
+        </div>
       </div>
 
       <div className="flex justify-between items-center text-sm font-bold mt-1">
@@ -126,7 +139,7 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
           <Clock className="w-4 h-4" />
           <span>{order.createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
           <span className="ml-2 font-black bg-white/80 px-2 rounded-md border border-black/10">
-            {elapsedMinutes}m {elapsedSeconds}s
+            {elapsedMinutes}m
           </span>
         </div>
         {isExpeditor && (
@@ -150,9 +163,11 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
                   <span className="leading-tight mt-1">{item.name}</span>
                 </div>
                 {isExpeditor && (
-                  <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider ${isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {itemStatus}
-                  </span>
+                  <div className="flex flex-col gap-1 items-end">
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider ${isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {itemStatus}
+                    </span>
+                  </div>
                 )}
               </div>
               
@@ -165,20 +180,27 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
               {/* BIG Touch Controls for Section View */}
               {!isExpeditor && (
                 <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-                  <button 
-                    onClick={() => moveItem(order, idx, itemStatus, -1)}
-                    disabled={itemStatus === activeSectionColumns[0]}
-                    className="flex-1 py-3 text-sm font-black bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all flex items-center justify-center border border-gray-200"
-                  >
-                    &lt; Atrás
-                  </button>
-                  <button 
-                    onClick={() => moveItem(order, idx, itemStatus, 1)}
-                    disabled={itemStatus === activeSectionColumns[activeSectionColumns.length - 1]}
-                    className="flex-[2] py-3 text-base font-black bg-green-500 text-white shadow-lg shadow-green-500/30 rounded-xl hover:bg-green-600 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all flex items-center justify-center border border-green-600"
-                  >
-                    {itemStatus === activeSectionColumns[activeSectionColumns.length - 1] ? 'Completado' : 'Avanzar >'}
-                  </button>
+                  {itemStatus !== activeSectionColumns[0] && (
+                    <button 
+                      onClick={() => moveItem(order, idx, itemStatus, -1)}
+                      className="w-1/3 py-3 text-sm font-black bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 active:scale-95 transition-all flex items-center justify-center border border-gray-200"
+                    >
+                      &lt; Atrás
+                    </button>
+                  )}
+                  {itemStatus !== activeSectionColumns[activeSectionColumns.length - 1] ? (
+                    <button 
+                      onClick={() => moveItem(order, idx, itemStatus, 1)}
+                      className="flex-1 py-3 text-base font-black bg-green-500 text-white shadow-lg shadow-green-500/30 rounded-xl hover:bg-green-600 active:scale-95 transition-all flex items-center justify-center border border-green-600"
+                    >
+                      Avanzar &gt;
+                    </button>
+                  ) : (
+                    <div className="flex-1 py-3 text-sm font-black bg-green-50 text-green-700 rounded-xl border border-green-200 flex items-center justify-center cursor-default">
+                      <CheckCircle2 className="w-5 h-5 mr-2" />
+                      Esperando
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -208,12 +230,77 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
           <span className="font-black">Notas del cliente:</span> {order.notes}
         </div>
       )}
+      
+      {isExpeditor && order.customerInfo?.phone && (
+        <a 
+          href={getWhatsAppLink(order)} 
+          target="_blank" 
+          rel="noreferrer"
+          className="mt-2 w-full bg-green-50 hover:bg-green-100 text-green-700 font-bold py-2 rounded-xl flex items-center justify-center gap-2 border border-green-200 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MessageCircle className="w-4 h-4" /> Enviar Seguimiento
+        </a>
+      )}
+
+      {isExpeditor && column === 'READY_FOR_ASSEMBLY' && (
+        <button 
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (order.orderType === 'delivery') {
+              if (onMoveToDelivery) {
+                onMoveToDelivery(order.id);
+              }
+            } else {
+              await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
+            }
+          }}
+          className="mt-2 w-full bg-green-500 hover:bg-green-600 text-white font-black py-3 rounded-xl shadow-lg shadow-green-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 border border-green-600"
+        >
+          <CheckCircle2 className="w-5 h-5" /> 
+          {order.orderType === 'delivery' ? 'RECOGIDO POR REPARTIDOR' : 'ENTREGADO AL CLIENTE'}
+        </button>
+      )}
+
+      {isExpeditor && column === 'OUT_FOR_DELIVERY' && (
+        <button 
+          onClick={async (e) => {
+            e.stopPropagation();
+            await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
+          }}
+          className="mt-2 w-full bg-purple-500 hover:bg-purple-600 text-white font-black py-3 rounded-xl shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 border border-purple-600"
+        >
+          <CheckCircle2 className="w-5 h-5" /> ENTREGADO AL CLIENTE
+        </button>
+      )}
     </div>
   );
 };
 
-const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, deleteOrder, now, alarmMinutes }) => {
+const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
+
   if (!column) return null;
+
+  const filteredOrders = orders.filter(order => {
+    // Text search
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const customerName = (order.customerInfo?.name || '').toLowerCase();
+      const customerPhone = (order.customerInfo?.phone || '').toLowerCase();
+      const orderId = order.id.toLowerCase();
+      if (!customerName.includes(term) && !customerPhone.includes(term) && !orderId.includes(term)) {
+        return false;
+      }
+    }
+    // Type filter
+    if (filterType !== 'all') {
+      if (filterType === 'delivery' && order.orderType !== 'delivery') return false;
+      if (filterType === 'pickup' && order.orderType === 'delivery') return false;
+    }
+    return true;
+  });
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -221,29 +308,61 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
       
       <div className="relative w-full max-w-5xl bg-gray-50 rounded-3xl flex flex-col max-h-[90vh] overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="p-6 bg-white border-b border-gray-200 flex justify-between items-center z-10">
-          <div>
-            <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3">
-              {title} 
-              <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-xl text-xl">{orders.length}</span>
-            </h2>
-            <p className="text-gray-500 font-medium mt-1">Listado detallado ordenado por tiempo de espera</p>
+        <div className="p-6 bg-white border-b border-gray-200 flex flex-col gap-4 z-10">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+                {title} 
+                <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-xl text-xl">{filteredOrders.length}</span>
+              </h2>
+              <p className="text-gray-500 font-medium mt-1">Listado detallado ordenado por tiempo de espera</p>
+            </div>
+            <button onClick={onClose} className="p-3 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors">
+              <X className="w-6 h-6" />
+            </button>
           </div>
-          <button onClick={onClose} className="p-3 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors">
-            <X className="w-6 h-6" />
-          </button>
+          
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input 
+              type="text" 
+              placeholder="Buscar por cliente, teléfono o #código..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-sm"
+            />
+            <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
+              <button 
+                onClick={() => setFilterType('all')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${filterType === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Todos
+              </button>
+              <button 
+                onClick={() => setFilterType('delivery')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${filterType === 'delivery' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                A Domicilio
+              </button>
+              <button 
+                onClick={() => setFilterType('pickup')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${filterType === 'pickup' ? 'bg-white shadow-sm text-yellow-600' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Recoger
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* List Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {orders.map(order => {
+          {filteredOrders.map(order => {
             const elapsedMs = now.getTime() - order.createdAt.getTime();
             const elapsedMinutes = Math.floor(elapsedMs / 60000);
             const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
             const isAlarmTriggered = elapsedMinutes >= alarmMinutes;
 
             return (
-              <div key={order.id} className={`bg-white p-3 sm:p-4 rounded-xl border shadow-sm flex flex-col md:flex-row gap-4 ${isAlarmTriggered ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`}>
+              <div key={order.id} className={`bg-white p-3 sm:p-4 rounded-xl border shadow-sm flex flex-col md:flex-row gap-4 ${isAlarmTriggered && column !== 'COMPLETED' ? 'border-red-500 bg-red-50 animate-pulse' : 'border-gray-200'}`}>
                 {/* Info Lateral */}
                 <div className="flex-shrink-0 w-full md:w-48 flex flex-col justify-between gap-2">
                   <div>
@@ -258,27 +377,56 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
                     </div>
                     <div className={`flex items-center gap-1 text-sm font-bold mt-1 ${isAlarmTriggered ? 'text-red-600' : 'text-gray-500'}`}>
                       <Clock className="w-3 h-3" />
-                      <span>{elapsedMinutes}m {elapsedSeconds}s</span>
+                      <span>{elapsedMinutes}m</span>
                     </div>
                   </div>
                   
+                  {isExpeditor && order.customerInfo?.phone && (
+                    <a 
+                      href={getWhatsAppLink(order)} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="mt-2 text-xs bg-green-50 hover:bg-green-100 text-green-700 font-bold py-1.5 px-3 rounded-lg flex items-center justify-center gap-1 border border-green-200 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MessageCircle className="w-3 h-3" /> Enviar Seguimiento
+                    </a>
+                  )}
+
                   {isExpeditor && column === 'READY_FOR_ASSEMBLY' && (
                     <button 
                       onClick={async () => {
-                        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'COMPLETED' } : o));
+                        if (order.orderType === 'delivery') {
+                          if (onMoveToDelivery) {
+                            onMoveToDelivery(order.id);
+                          }
+                        } else {
+                          await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
+                        }
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center text-xs mt-2 transition-colors shadow-sm"
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-1" /> 
+                      {order.orderType === 'delivery' ? 'Recogido por Repartidor' : 'Entregado al Cliente'}
+                    </button>
+                  )}
+
+                  {isExpeditor && column === 'OUT_FOR_DELIVERY' && (
+                    <button 
+                      onClick={async () => {
                         await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
                       }}
-                      className="bg-black hover:bg-gray-800 text-white font-bold py-1.5 px-2 rounded-lg flex items-center justify-center text-xs mt-2 transition-colors"
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center text-xs mt-2 transition-colors shadow-sm"
                     >
-                      <CheckCircle2 className="w-3 h-3 mr-1" /> Marcar Completado
+                      <CheckCircle2 className="w-4 h-4 mr-1" /> Entregado al Cliente
                     </button>
                   )}
                   
                   <button 
-                    onClick={() => deleteOrder(order.id)}
+                    onClick={() => cancelOrder(order.id)}
                     className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 font-bold py-1.5 px-2 rounded-lg flex items-center justify-center text-xs transition-colors border border-red-100"
                   >
-                    <Trash2 className="w-3 h-3 mr-1" /> Eliminar Pedido
+                    <Ban className="w-3 h-3 mr-1" /> Pérdida/Cancelar
                   </button>
                 </div>
                 
@@ -306,26 +454,30 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
                           {/* Controles del Listado */}
                           {!isExpeditor && (
                             <div className="flex items-center gap-1 ml-8 sm:ml-0 shrink-0">
-                              <button 
-                                onClick={() => moveItem(order, idx, itemStatus, -1)}
-                                disabled={itemStatus === activeSectionColumns[0]}
-                                className="px-3 py-1.5 text-xs font-black bg-white text-gray-500 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all border border-gray-200"
-                              >
-                                &lt; Atrás
-                              </button>
-                              <button 
-                                onClick={() => moveItem(order, idx, itemStatus, 1)}
-                                disabled={itemStatus === activeSectionColumns[activeSectionColumns.length - 1]}
-                                className="px-3 py-1.5 text-xs font-black bg-green-500 text-white shadow-sm shadow-green-500/20 rounded hover:bg-green-600 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all border border-green-600 min-w-[90px]"
-                              >
-                                {itemStatus === activeSectionColumns[activeSectionColumns.length - 1] ? 'Completado' : 'Avanzar >'}
-                              </button>
+                              {itemStatus !== activeSectionColumns[0] && (
+                                <button 
+                                  onClick={() => moveItem(order, idx, itemStatus, -1)}
+                                  className="px-3 py-1.5 text-xs font-black bg-white text-gray-500 rounded hover:bg-gray-100 active:scale-95 transition-all border border-gray-200"
+                                >
+                                  &lt; Atrás
+                                </button>
+                              )}
+                              {itemStatus !== activeSectionColumns[activeSectionColumns.length - 1] && (
+                                <button 
+                                  onClick={() => moveItem(order, idx, itemStatus, 1)}
+                                  className="px-3 py-1.5 text-xs font-black bg-green-500 text-white shadow-sm shadow-green-500/20 rounded hover:bg-green-600 active:scale-95 transition-all border border-green-600 min-w-[90px]"
+                                >
+                                  Avanzar &gt;
+                                </button>
+                              )}
                             </div>
                           )}
                           {isExpeditor && (
-                             <span className={`text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-wider ${isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                               {itemStatus}
-                             </span>
+                             <div className="flex items-center gap-2">
+                               <span className={`text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-wider ${isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                                 {itemStatus}
+                               </span>
+                             </div>
                           )}
                         </div>
                       );
@@ -341,9 +493,10 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
               </div>
             );
           })}
-          {orders.length === 0 && (
-            <div className="text-center py-20 text-gray-500 text-lg font-medium">
-              No hay pedidos en esta columna.
+          {filteredOrders.length === 0 && (
+            <div className="text-center py-20 text-gray-500 text-lg font-medium flex flex-col items-center justify-center gap-2">
+              <span className="text-4xl">🔍</span>
+              No se han encontrado pedidos.
             </div>
           )}
         </div>
@@ -357,7 +510,9 @@ const KanbanBoard = () => {
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [alarmMinutes, setAlarmMinutes] = useState(15);
+  const [drivers, setDrivers] = useState([]);
   const [now, setNow] = useState(new Date());
+  const [driverSelectOrderId, setDriverSelectOrderId] = useState(null);
   
   const [activeView, setActiveView] = useState('expeditor');
   const [activeDragId, setActiveDragId] = useState(null);
@@ -383,8 +538,14 @@ const KanbanBoard = () => {
       setSections(secSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
       const setSnap = await getDoc(doc(db, 'settings', 'general'));
-      if (setSnap.exists() && setSnap.data().orderAlarmMinutes) {
-        setAlarmMinutes(setSnap.data().orderAlarmMinutes);
+      if (setSnap.exists()) {
+        const data = setSnap.data();
+        if (data.orderAlarmMinutes) {
+          setAlarmMinutes(data.orderAlarmMinutes);
+        }
+        if (data.drivers) {
+          setDrivers(data.drivers.split(',').map(d => d.trim()).filter(d => d));
+        }
       }
     };
     fetchSectionsAndSettings();
@@ -465,14 +626,39 @@ const KanbanBoard = () => {
     }
   };
 
-  const deleteOrder = async (orderId) => {
-    if(window.confirm("¿Estás seguro de que deseas eliminar este pedido?")) {
+  const cancelOrder = async (orderId) => {
+    if(window.confirm("¿Marcar este pedido como PÉRDIDA/CANCELADO? Desaparecerá de la cocina pero se registrará en las estadísticas.")) {
+      // Optimistic update
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'CANCELED' } : o));
+      
       try {
-        await deleteDoc(doc(db, 'orders', orderId));
+        await updateDoc(doc(db, 'orders', orderId), { status: 'CANCELED' });
       } catch (error) {
-        console.error("Error deleting order: ", error);
+        console.error("Error canceling order: ", error);
       }
     }
+  };
+
+  const handleMoveToDelivery = (orderId) => {
+    setDriverSelectOrderId(orderId);
+  };
+
+  const confirmDeliveryDriver = async (driverName) => {
+    if (!driverSelectOrderId) return;
+    
+    // Optimistic update
+    setOrders(prev => prev.map(o => o.id === driverSelectOrderId ? { ...o, status: 'OUT_FOR_DELIVERY', driverName } : o));
+    
+    try {
+      await updateDoc(doc(db, 'orders', driverSelectOrderId), { 
+        status: 'OUT_FOR_DELIVERY', 
+        driverName 
+      });
+    } catch (err) {
+      console.error("Error asignando repartidor: " + err.message);
+    }
+    
+    setDriverSelectOrderId(null);
   };
 
   const handleDragStart = (event) => {
@@ -501,17 +687,26 @@ const KanbanBoard = () => {
     }
 
     if (activeView === 'expeditor') {
-      if (currentColumn === 'READY_FOR_ASSEMBLY' && targetColumn === 'COMPLETED') {
+      if (
+        (currentColumn === 'READY_FOR_ASSEMBLY' && targetColumn === 'COMPLETED') ||
+        (currentColumn === 'READY_FOR_ASSEMBLY' && targetColumn === 'OUT_FOR_DELIVERY' && order.orderType === 'delivery') ||
+        (currentColumn === 'OUT_FOR_DELIVERY' && targetColumn === 'COMPLETED')
+      ) {
+        if (targetColumn === 'OUT_FOR_DELIVERY') {
+          handleMoveToDelivery(orderId);
+          return; // The drag will be aborted visually, but we open the modal which handles the DB update
+        }
+
         // Optimistic update
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'COMPLETED' } : o));
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: targetColumn } : o));
         
         try {
-          await updateDoc(doc(db, 'orders', orderId), { status: 'COMPLETED' });
+          await updateDoc(doc(db, 'orders', orderId), { status: targetColumn });
         } catch (err) {
           console.error("Error actualizando Firebase: " + err.message);
         }
       } else {
-        alert("En la Mesa de Pase, los pedidos avanzan automáticamente a 'Para Ensamblar' cuando todas las secciones terminan. Solo puedes arrastrar manualmente a 'Completados'.");
+        alert("En la Mesa de Pase, los pedidos avanzan automáticamente. Solo puedes arrastrar manualmente a sus estados finales permitidos.");
       }
     } else {
       // Section View bulk update
@@ -553,8 +748,8 @@ const KanbanBoard = () => {
   const columnsToRender = isExpeditor ? EXPEDITOR_COLUMNS : activeSectionColumns;
 
   const visibleOrders = isExpeditor 
-    ? orders 
-    : orders.filter(o => o.status !== 'COMPLETED' && o.items?.some(i => i.sectionId === activeView));
+    ? orders.filter(o => o.status !== 'CANCELED') 
+    : orders.filter(o => o.status !== 'COMPLETED' && o.status !== 'CANCELED' && o.items?.some(i => i.sectionId === activeView));
 
   return (
     <div className="flex flex-col h-full">
@@ -575,6 +770,14 @@ const KanbanBoard = () => {
             {sec.name}
           </button>
         ))}
+        
+        <div className="flex-1"></div>
+        <button 
+          onClick={() => setModalColumn('COMPLETED')}
+          className="px-4 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 shadow-sm"
+        >
+          <CheckCircle2 className="w-5 h-5" /> Historial Entregados
+        </button>
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
@@ -618,9 +821,10 @@ const KanbanBoard = () => {
                     activeSectionColumns={activeSectionColumns}
                     isItemReady={isItemReady}
                     moveItem={moveItem}
-                    deleteOrder={deleteOrder}
+                    cancelOrder={cancelOrder}
                     now={now}
                     alarmMinutes={alarmMinutes}
+                    onMoveToDelivery={handleMoveToDelivery}
                   />
                 ))}
               </KanbanColumn>
@@ -672,10 +876,46 @@ const KanbanBoard = () => {
           activeSectionColumns={activeSectionColumns}
           isItemReady={isItemReady}
           moveItem={moveItem}
-          deleteOrder={deleteOrder}
+          cancelOrder={cancelOrder}
           now={now}
           alarmMinutes={alarmMinutes}
+          onMoveToDelivery={handleMoveToDelivery}
         />
+      )}
+
+      {/* Driver Selection Modal */}
+      {driverSelectOrderId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col">
+            <h3 className="text-xl font-black mb-4">¿Quién se lleva este pedido?</h3>
+            <div className="space-y-3">
+              {drivers.length > 0 ? (
+                drivers.map(d => (
+                  <button
+                    key={d}
+                    onClick={() => confirmDeliveryDriver(d)}
+                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-xl transition-colors"
+                  >
+                    {d}
+                  </button>
+                ))
+              ) : (
+                <button
+                  onClick={() => confirmDeliveryDriver('Repartidor (Cualquiera)')}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-colors"
+                >
+                  Asignar a todos a la vez
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setDriverSelectOrderId(null)}
+              className="mt-6 text-gray-500 font-bold py-2 w-full text-center hover:bg-gray-100 rounded-xl"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

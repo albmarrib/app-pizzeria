@@ -1,7 +1,12 @@
 import React from 'react';
 import { Phone, MessageCircle, MapPin } from 'lucide-react';
 
-const Footer = () => {
+const Footer = ({ globalSettings }) => {
+  const name = globalSettings?.pizzeriaName || 'Slice Pizza';
+  const spaceIndex = name.indexOf(' ');
+  const firstPart = spaceIndex > -1 ? name.substring(0, spaceIndex) : name;
+  const secondPart = spaceIndex > -1 ? name.substring(spaceIndex + 1) : '';
+
   return (
     <footer className="bg-gray-900 text-gray-300 pt-16 pb-8 border-t-4 border-red-600">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -10,7 +15,7 @@ const Footer = () => {
           {/* Logo & About */}
           <div>
             <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">
-              Slice <span className="text-red-600">Pizza</span>
+              {firstPart} {secondPart && <span className="text-red-600">{secondPart}</span>}
             </h2>
             <p className="text-gray-400 mb-6 leading-relaxed">
               Auténtica pizza estilo New York elaborada diariamente con masa madre, ingredientes frescos y mucho carácter. 
@@ -75,7 +80,7 @@ const Footer = () => {
 
         {/* Legal Bottom */}
         <div className="pt-8 border-t border-gray-800 text-sm text-gray-500 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p>&copy; {new Date().getFullYear()} Slice Pizza SaaS. Todos los derechos reservados.</p>
+          <p>&copy; {new Date().getFullYear()} Pizzería-SaaS. Todos los derechos reservados.</p>
           <div className="flex gap-4">
             <a href="#" className="hover:text-white transition-colors">Aviso Legal</a>
             <a href="#" className="hover:text-white transition-colors">Política de Privacidad</a>

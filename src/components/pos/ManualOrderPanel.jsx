@@ -78,12 +78,12 @@ const ManualOrderPanel = () => {
 
   return (
     <div className="relative h-full overflow-hidden bg-gray-50 rounded-2xl border border-gray-200">
-      <div className="h-full overflow-y-auto relative">
+      <div className="h-full overflow-y-auto relative" id="pos-scroll-container">
         <FullMenu 
           categories={categories} 
           products={products} 
           onAdd={addToCart}
-          // No pasamos onBack para que no muestre el botón
+          isPosMode={true}
         />
       </div>
 

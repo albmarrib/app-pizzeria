@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { seedProductsIfEmpty } from './firebase/seed';
 import CustomerWeb from './pages/CustomerWeb';
 import POSDashboard from './pages/POSDashboard';
+import DeliveryDriver from './pages/DeliveryDriver';
+import OrderTracking from './pages/OrderTracking';
 import './App.css'; // Mantenemos si hay estilos específicos
 
 function App() {
@@ -20,6 +22,12 @@ function App() {
         
         {/* Ruta para el panel de control del mostrador */}
         <Route path="/pos" element={<POSDashboard />} />
+
+        {/* Ruta para la aplicación móvil del repartidor */}
+        <Route path="/repartidor" element={<DeliveryDriver />} />
+
+        {/* Ruta para el seguimiento del cliente */}
+        <Route path="/pedido/:orderId" element={<OrderTracking />} />
       </Routes>
     </BrowserRouter>
   );

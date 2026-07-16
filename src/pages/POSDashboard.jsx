@@ -1,22 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
 import KanbanBoard from '../components/pos/KanbanBoard';
 import SettingsPanel from '../components/pos/SettingsPanel';
 import ManualOrderPanel from '../components/pos/ManualOrderPanel';
-import { LayoutDashboard, Settings, LogOut, Bell, ShoppingBag } from 'lucide-react';
+import StatsPanel from '../components/pos/StatsPanel';
+import { LayoutDashboard, Settings, LogOut, Bell, ShoppingBag, BarChart3 } from 'lucide-react';
 
 const POSDashboard = () => {
   const [activeTab, setActiveTab] = useState('pedidos');
+  const [globalSettings, setGlobalSettings] = useState(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (docSnap.exists()) {
+          setGlobalSettings(docSnap.data());
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const logoUrl = globalSettings?.logoUrl !== undefined ? globalSettings.logoUrl : '/logo.jpg';
 
   return (
     <div className="min-h-screen bg-gray-100 flex font-sans">
       {/* Sidebar */}
       <aside className="w-20 lg:w-64 bg-white border-r border-gray-200 flex flex-col">
-        <div className="h-16 flex items-center justify-center lg:justify-start lg:px-6 border-b border-gray-100">
+        <div className="h-16 flex items-center justify-center lg:justify-start lg:px-6 border-b border-gray-100 gap-3">
+          {logoUrl && (
+            <img src={logoUrl} alt="Logo" className="h-10 w-10 object-contain rounded-md" />
+          )}
           <div className="text-xl font-black text-red-600 hidden lg:block">
-            SLICE<span className="text-gray-900">POS</span>
-          </div>
-          <div className="text-xl font-black text-red-600 lg:hidden">
-            S<span className="text-gray-900">P</span>
+            {globalSettings?.pizzeriaName ? (
+              globalSettings.pizzeriaName.split(' ')[0]
+            ) : "SLICE"}
+            <span className="text-gray-900">
+              {globalSettings?.pizzeriaName ? globalSettings.pizzeriaName.split(' ').slice(1).join(' ') : "POS"}
+            </span>
           </div>
         </div>
         
@@ -43,6 +68,14 @@ const POSDashboard = () => {
           >
             <Settings className="w-6 h-6" />
             <span className="hidden lg:block">Configuración</span>
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('estadisticas')}
+            className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'estadisticas' ? 'bg-red-50 text-red-600 font-semibold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
+          >
+            <BarChart3 className="w-6 h-6" />
+            <span className="hidden lg:block">Estadísticas y Cierre</span>
           </button>
         </nav>
         
@@ -81,6 +114,7 @@ const POSDashboard = () => {
           {activeTab === 'nuevo_pedido' && <ManualOrderPanel />}
           {activeTab === 'pedidos' && <KanbanBoard />}
           {activeTab === 'configuracion' && <SettingsPanel />}
+          {activeTab === 'estadisticas' && <StatsPanel />}
         </div>
       </main>
     </div>

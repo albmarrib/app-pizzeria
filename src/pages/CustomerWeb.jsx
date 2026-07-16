@@ -228,7 +228,7 @@ const CustomerWeb = () => {
       ) : null}
 
       {/* Footer Fijo en todas las vistas */}
-      <Footer />
+      <Footer globalSettings={globalSettings} />
 
       {/* Carrito */}
       <CartDrawer 

@@ -316,9 +316,9 @@ const ConfigGeneral = () => {
                       <p className="text-xs text-gray-500 mb-3">Puedes cobrar un extra a los clientes que elijan pagar online para compensar las comisiones del banco.</p>
                       
                       <div className="flex gap-4 items-center">
-                        <select name="stripeSurchargeType" value={settings.stripeSurchargeType || 'percentage'} onChange={handleChange} className="w-1/3 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                          <option value="percentage">Porcentaje (%)</option>
-                          <option value="fixed">Fijo (€)</option>
+                        <select name="stripeSurchargeType" value={settings.stripeSurchargeType || 'percentage'} onChange={handleChange} className="w-1/3 border border-gray-300 rounded-xl px-2 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm">
+                          <option value="percentage">%</option>
+                          <option value="fixed">€</option>
                         </select>
                         <input type="number" step="0.10" name="stripeSurchargeValue" value={settings.stripeSurchargeValue || 0} onChange={handleChange} className="w-2/3 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white" placeholder="Ej: 2.5" />
                       </div>

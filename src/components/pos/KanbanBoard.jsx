@@ -89,11 +89,11 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
     data: { order, currentColumn: column }
   });
 
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    zIndex: 50,
-    touchAction: 'none'
-  } : { touchAction: 'none' };
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    zIndex: transform ? 50 : undefined,
+    touchAction: isDragging ? 'none' : 'pan-y'
+  };
 
   const getSectionName = (secId) => sections.find(s => s.id === secId)?.name || 'Sin Sección';
 
@@ -526,8 +526,8 @@ const KanbanBoard = () => {
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 200,
-        tolerance: 5,
+        delay: 350,
+        tolerance: 8,
       },
     })
   );

@@ -1,25 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { db, storage } from '../../../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Save, Info, MapPin, Store, Clock, Upload, X, User } from 'lucide-react';
+import { Save, Info, MapPin, Store, Clock, Upload, X, User, FileText, CheckCircle2 } from 'lucide-react';
 
 const ConfigGeneral = () => {
   const [settings, setSettings] = useState({
-    pizzeriaName: 'Slice Pizzería',
-    originAddress: 'Cádiz Centro, España',
+    pizzeriaName: 'SLICE',
+    phone: '',
+    address: '',
+    legalName: '',
+    legalNif: '',
+    legalAddress: '',
+    stripeEnabled: false,
+    stripeAccountId: '',
+    stripeSurchargeType: 'percentage', // 'percentage' o 'fixed'
+    stripeSurchargeValue: 0,
     deliveryFee: 2.50,
     deliveryType: 'postal_codes', // 'postal_codes' o 'km'
     maxRadiusKm: 5,
     postalCodes: '11001, 11002, 11003',
     orderAlarmMinutes: 15,
     adminPassword: '1234',
-    logoUrl: '/logo.jpg', // Default a la que acabamos de mover, si no hay otra
-    drivers: '' // Lista de repartidores separados por comas
+    logoUrl: '/logo.jpg',
+    drivers: '',
+    loyaltyEnabled: false,
+    loyaltyOrdersRequired: 10,
+    loyaltyRewardText: '1 Pizza Gratis',
+    loyaltyRewardCategory: ''
   });
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [activeTab, setActiveTab] = useState('fidelidad');
+  const [stripeConnecting, setStripeConnecting] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -28,8 +43,18 @@ const ConfigGeneral = () => {
         if (docSnap.exists()) {
           setSettings(prev => ({ ...prev, ...docSnap.data() }));
         }
+        
+        const catSnap = await getDocs(collection(db, 'categories'));
+        setCategories(catSnap.docs.map(d => d.data().name));
+
+        // Check for Stripe OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code) {
+          handleStripeCallback(code);
+        }
       } catch (error) {
-        console.error("Error loading settings:", error);
+        console.error("Error fetching settings:", error);
       } finally {
         setLoading(false);
       }
@@ -38,10 +63,10 @@ const ConfigGeneral = () => {
   }, []);
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
+    const { name, value, type, checked } = e.target;
     setSettings(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? parseFloat(value) || 0 : value)
     }));
   };
 
@@ -83,7 +108,40 @@ const ConfigGeneral = () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-gray-500">Cargando...</div>;
+  const handleStripeCallback = async (code) => {
+    try {
+      setStripeConnecting(true);
+      const res = await fetch('/api/stripe-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      if (data.connectedAccountId) {
+        const newSettings = { ...settings, stripeAccountId: data.connectedAccountId };
+        setSettings(newSettings);
+        await setDoc(doc(db, 'settings', 'general'), newSettings, { merge: true });
+        alert('¡Cuenta de Stripe vinculada con éxito!');
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else {
+        throw new Error(data.error || 'Error desconocido');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error conectando con Stripe: ' + err.message);
+    } finally {
+      setStripeConnecting(false);
+    }
+  };
+
+  const handleConnectStripe = () => {
+    const clientId = import.meta.env.VITE_STRIPE_CLIENT_ID || 'ca_PLACEHOLDER';
+    const redirectUri = window.location.origin + window.location.pathname;
+    window.location.href = `https://connect.stripe.com/oauth/authorize?response_type=code&client_id=${clientId}&scope=read_write&redirect_uri=${redirectUri}`;
+  };
+
+  if (loading) return <div className="p-8 text-center text-gray-500">Cargando configuración...</div>;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
@@ -93,12 +151,10 @@ const ConfigGeneral = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Identidad */}
         <div className="space-y-6">
           <h3 className="font-bold text-lg flex items-center gap-2"><Info className="w-5 h-5 text-gray-400"/> Identidad del Local</h3>
           
           <div className="flex flex-col sm:flex-row gap-6 items-start">
-            {/* Subida de Logo */}
             <div className="flex-shrink-0 flex flex-col items-center gap-3">
               <label className="block text-sm font-semibold text-gray-700">Logo del Local</label>
               <div className="relative w-32 h-32 rounded-2xl border-2 border-dashed border-gray-300 overflow-hidden flex items-center justify-center bg-gray-50 group hover:border-red-400 transition-colors">
@@ -174,9 +230,106 @@ const ConfigGeneral = () => {
           </div>
         </div>
 
-        {/* Envíos */}
         <div className="space-y-6">
-          <h3 className="font-bold text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-gray-400"/> Logística y Envíos</h3>
+          <div className="flex gap-4 border-b border-gray-200">
+            <button onClick={() => setActiveTab('fidelidad')} className={`pb-2 font-bold ${activeTab === 'fidelidad' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Fidelidad</button>
+            <button onClick={() => setActiveTab('pagos')} className={`pb-2 font-bold ${activeTab === 'pagos' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Pagos Online</button>
+            <button onClick={() => setActiveTab('legal')} className={`pb-2 font-bold ${activeTab === 'legal' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Datos Legales</button>
+          </div>
+
+          {activeTab === 'fidelidad' && (
+            <div className="bg-red-50 p-4 rounded-xl border border-red-100 space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" name="loyaltyEnabled" checked={settings.loyaltyEnabled || false} onChange={handleChange} className="w-5 h-5 rounded text-red-600 focus:ring-red-500" />
+                <span className="font-bold text-gray-900">Activar Fidelización por Teléfono</span>
+              </label>
+              
+              {settings.loyaltyEnabled && (
+                <div className="pt-2 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Pedidos necesarios para el premio</label>
+                    <input type="number" name="loyaltyOrdersRequired" value={settings.loyaltyOrdersRequired} onChange={handleChange} className="w-full sm:w-1/2 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Categoría del Premio</label>
+                    <select name="loyaltyRewardCategory" value={settings.loyaltyRewardCategory || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none bg-white">
+                      <option value="">-- Selecciona una categoría --</option>
+                      {categories.map((cat, idx) => (
+                        <option key={idx} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Texto descriptivo del Premio</label>
+                    <input type="text" name="loyaltyRewardText" value={settings.loyaltyRewardText} onChange={handleChange} placeholder="Ej: 1 Pizza Gratis a elegir" className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none bg-white" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+            
+          {activeTab === 'legal' && (
+            <div className="pt-2 space-y-4">
+              <p className="text-sm text-gray-500 mb-4">Estos datos aparecerán en las facturas oficiales generadas para los clientes.</p>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Razón Social</label>
+                <input type="text" name="legalName" value={settings.legalName || ''} onChange={handleChange} placeholder="Ej: SLICE PIZZA S.L." className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">NIF / CIF</label>
+                <input type="text" name="legalNif" value={settings.legalNif || ''} onChange={handleChange} placeholder="Ej: B12345678" className="w-full sm:w-1/2 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Dirección Fiscal completa</label>
+                <input type="text" name="legalAddress" value={settings.legalAddress || ''} onChange={handleChange} placeholder="Ej: Calle Principal 123, 28001 Madrid" className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none bg-white" />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'pagos' && (
+            <div className="pt-2 space-y-6">
+              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="stripeEnabled" checked={settings.stripeEnabled || false} onChange={handleChange} className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500" />
+                  <span className="font-bold text-gray-900">Activar Pagos por Stripe (Apple/Google Pay)</span>
+                </label>
+                
+                {settings.stripeEnabled && (
+                  <div className="pt-4 border-t border-blue-200 space-y-4">
+                    <div>
+                      <h4 className="font-bold text-sm text-gray-700 mb-2">Conexión con el Banco</h4>
+                      {settings.stripeAccountId ? (
+                        <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200">
+                          <CheckCircle2 className="w-5 h-5 text-green-500" />
+                          <span className="text-sm font-medium text-gray-700">Cuenta Vinculada: <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{settings.stripeAccountId}</span></span>
+                          <button type="button" onClick={() => setSettings({...settings, stripeAccountId: ''})} className="ml-auto text-xs text-red-500 hover:underline">Desvincular</button>
+                        </div>
+                      ) : (
+                        <button type="button" onClick={handleConnectStripe} disabled={stripeConnecting} className="bg-[#635BFF] text-white font-bold px-6 py-3 rounded-xl shadow-sm hover:bg-[#4B45D6] transition-colors w-full sm:w-auto">
+                          {stripeConnecting ? 'Conectando...' : 'Conectar Banco de la Pizzería'}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="pt-4">
+                      <h4 className="font-bold text-sm text-gray-700 mb-2">Comisión / Recargo al Cliente</h4>
+                      <p className="text-xs text-gray-500 mb-3">Puedes cobrar un extra a los clientes que elijan pagar online para compensar las comisiones del banco.</p>
+                      
+                      <div className="flex gap-4 items-center">
+                        <select name="stripeSurchargeType" value={settings.stripeSurchargeType || 'percentage'} onChange={handleChange} className="w-1/3 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                          <option value="percentage">Porcentaje (%)</option>
+                          <option value="fixed">Fijo (€)</option>
+                        </select>
+                        <input type="number" step="0.10" name="stripeSurchargeValue" value={settings.stripeSurchargeValue || 0} onChange={handleChange} className="w-2/3 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white" placeholder="Ej: 2.5" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <h3 className="font-bold text-lg flex items-center gap-2 mt-8 pt-6 border-t border-gray-100"><MapPin className="w-5 h-5 text-gray-400"/> Logística y Envíos</h3>
           
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Coste de envío a domicilio (€)</label>

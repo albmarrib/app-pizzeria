@@ -13,7 +13,7 @@ const ProductsManager = () => {
   
   const [isEditing, setIsEditing] = useState(false);
   const [currentProd, setCurrentProd] = useState({ 
-    id: null, name: '', description: '', price: 0, category: '', sectionId: '', imageUrl: '', 
+    id: null, name: '', description: '', price: 0, taxRate: 10, category: '', sectionId: '', imageUrl: '', 
     order: 0, baseIngredients: '', allergenIds: [], customizable: false, outOfStock: false
   });
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -53,6 +53,7 @@ const ProductsManager = () => {
         name: currentProd.name,
         description: currentProd.description,
         price: parseFloat(currentProd.price) || 0,
+        taxRate: parseFloat(currentProd.taxRate) || 10,
         category: currentProd.category,
         sectionId: currentProd.sectionId || '',
         imageUrl: currentProd.imageUrl,
@@ -141,9 +142,20 @@ const ProductsManager = () => {
               <label className="block text-sm font-bold mb-1">Nombre del producto</label>
               <input type="text" value={currentProd.name} onChange={e=>setCurrentProd({...currentProd, name:e.target.value})} className="w-full p-2 border border-gray-300 rounded" required/>
             </div>
-            <div>
-              <label className="block text-sm font-bold mb-1">Precio (€)</label>
-              <input type="number" step="0.10" value={currentProd.price} onChange={e=>setCurrentProd({...currentProd, price:e.target.value})} className="w-full p-2 border border-gray-300 rounded" required/>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold mb-1">Precio (€)</label>
+                <input type="number" step="0.10" value={currentProd.price} onChange={e => setCurrentProd({...currentProd, price: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300" required />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-1">IVA (%)</label>
+                <select value={currentProd.taxRate || 10} onChange={e => setCurrentProd({...currentProd, taxRate: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300">
+                  <option value="10">10% (Comida)</option>
+                  <option value="21">21% (Bebidas/Alcohol)</option>
+                  <option value="4">4% (Súper reducido)</option>
+                  <option value="0">0% (Exento)</option>
+                </select>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-bold mb-1">Categoría</label>
@@ -248,6 +260,7 @@ const ProductsManager = () => {
                           <span className="font-bold text-gray-900">{p.price.toFixed(2)}€</span>
                         </div>
                         <p className="text-xs text-gray-500 mt-1 line-clamp-1">{p.baseIngredients || p.description}</p>
+                        <p className="text-[10px] text-gray-400">IVA {p.taxRate || 10}%</p>
                         {p.sectionId && (
                           <div className="mt-1 flex">
                             <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { ChefHat, CheckCircle2, Bike, Store, Utensils, ArrowLeft, Clock } from 'lucide-react';
+import { ChefHat, CheckCircle2, Bike, Store, Utensils, ArrowLeft, Clock, Gift, FileText } from 'lucide-react';
 
 const OrderTracking = () => {
   const { orderId } = useParams();
@@ -227,7 +227,56 @@ const OrderTracking = () => {
             <span className="font-black text-gray-900">Total pagado</span>
             <span className="font-black text-red-600">{order.total?.toFixed(2)}€</span>
           </div>
+
+          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+            <p className="text-gray-500 text-sm mb-3">¿Necesitas una factura oficial de este pedido?</p>
+            <button 
+              onClick={() => navigate(`/factura/${orderId}`)}
+              className="bg-gray-100 text-gray-900 hover:bg-gray-200 font-bold px-6 py-3 rounded-xl inline-flex items-center gap-2 transition-colors w-full sm:w-auto justify-center"
+            >
+              <FileText className="w-5 h-5" />
+              {order.invoiceId ? 'Ver Factura' : 'Solicitar Factura'}
+            </button>
+          </div>
         </div>
+
+        {/* Programa de Fidelización */}
+        {order.loyaltyStatus && (
+          <div className="mt-8 bg-gradient-to-br from-red-500 to-red-600 rounded-3xl shadow-lg border border-red-400 p-6 mb-8 text-white relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
+                  <Gift className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-black text-xl">Programa de Fidelidad</h3>
+              </div>
+              
+              {order.loyaltyStatus.hasReward ? (
+                <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-sm border border-white/20">
+                  <h4 className="font-bold text-lg mb-1">¡Premio Alcanzado! 🎉</h4>
+                  <p className="text-red-100 font-medium">En tu próximo pedido podrás disfrutar de: <strong className="text-white">{order.loyaltyStatus.rewardText}</strong>. ¡Gracias por confiar en nosotros!</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-red-100 mb-3 font-medium">Llevas <strong className="text-white text-lg">{order.loyaltyStatus.orderCount}</strong> de <strong className="text-white">{order.loyaltyStatus.required}</strong> pedidos para conseguir: <strong className="text-white">{order.loyaltyStatus.rewardText}</strong></p>
+                  
+                  {/* Barra de progreso */}
+                  <div className="h-4 bg-red-900/40 rounded-full overflow-hidden p-0.5 border border-red-400/30">
+                    <div 
+                      className="h-full bg-white rounded-full relative overflow-hidden transition-all duration-1000" 
+                      style={{ width: `${(order.loyaltyStatus.orderCount / order.loyaltyStatus.required) * 100}%` }}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent w-[200%] animate-[shimmer_2s_infinite]"></div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* Decoración de fondo */}
+            <Gift className="w-48 h-48 absolute -right-8 -bottom-10 text-white opacity-5 transform -rotate-12 pointer-events-none" />
+          </div>
+        )}
 
       </div>
     </div>

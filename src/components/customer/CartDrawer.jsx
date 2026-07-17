@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Minus, Plus, Trash2, ArrowRight, CreditCard, Apple, Store, MapPin, Phone, User, CheckCircle2 } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { ShoppingCart, Plus, Minus, X, ArrowRight, Store, Trash2, CreditCard, Apple, Phone, User, MapPin, Gift } from 'lucide-react';
+import StripeCheckout from './StripeCheckout';
+import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
 // Utilidad para generar códigos cortos únicos
@@ -28,18 +29,28 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
     notes: ''
   });
 
-  const [deliveryFee, setDeliveryFee] = useState(2.50);
+  const [globalSettings, setGlobalSettings] = useState({});
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderCode, setOrderCode] = useState('');
+  
+  // Fidelidad
+  const [loyaltyCustomer, setLoyaltyCustomer] = useState(null);
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [rewardItemText, setRewardItemText] = useState('');
+  const [showOnlinePayment, setShowOnlinePayment] = useState(false);
+  const [claimingReward, setClaimingReward] = useState(false);
+  const [rewardProducts, setRewardProducts] = useState([]);
+  const [loadingRewardProducts, setLoadingRewardProducts] = useState(false);
 
   // Sincronizar fee desde settings globales o locales si es necesario
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         const docSnap = await getDoc(doc(db, 'settings', 'general'));
-        if (docSnap.exists() && docSnap.data().deliveryFee !== undefined) {
-          setDeliveryFee(Number(docSnap.data().deliveryFee));
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setGlobalSettings(data);
         }
       } catch (error) {
         console.error("Error loading settings:", error);
@@ -48,8 +59,65 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
     if (isOpen) fetchSettings();
   }, [isOpen]);
 
-  const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const total = orderType === 'delivery' ? subtotal + deliveryFee : subtotal;
+  // Buscar cliente para fidelización por teléfono
+  useEffect(() => {
+    if (!globalSettings.loyaltyEnabled || customerInfo.phone.replace(/\D/g, '').length < 9) {
+      setLoyaltyCustomer(null);
+      return;
+    }
+    
+    const checkLoyalty = async () => {
+      try {
+        const q = query(collection(db, 'customers'), where('phone', '==', customerInfo.phone));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const custDoc = snap.docs[0];
+          setLoyaltyCustomer({ id: custDoc.id, ...custDoc.data() });
+        } else {
+          setLoyaltyCustomer(null);
+        }
+      } catch (err) {
+        console.error("Error checking loyalty:", err);
+      }
+    };
+    
+    const timer = setTimeout(checkLoyalty, 500);
+    return () => clearTimeout(timer);
+  }, [customerInfo.phone, globalSettings.loyaltyEnabled]);
+
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const deliveryFee = globalSettings?.deliveryFee || 2.50;
+  
+  let total = subtotal + (orderType === 'delivery' ? deliveryFee : 0);
+  
+  // Calcular recargo de Stripe
+  const hasStripe = globalSettings?.stripeEnabled && globalSettings?.stripeAccountId;
+  let stripeSurcharge = 0;
+  if (showOnlinePayment && hasStripe) {
+    if (globalSettings.stripeSurchargeType === 'fixed') {
+      stripeSurcharge = Number(globalSettings.stripeSurchargeValue || 0);
+    } else {
+      stripeSurcharge = total * (Number(globalSettings.stripeSurchargeValue || 0) / 100);
+    }
+  }
+  
+  total += stripeSurcharge;
+
+  const handleOpenReward = async () => {
+    setShowRewardModal(true);
+    if (globalSettings.loyaltyRewardCategory && rewardProducts.length === 0) {
+      setLoadingRewardProducts(true);
+      try {
+        const q = query(collection(db, 'products'), where('category', '==', globalSettings.loyaltyRewardCategory));
+        const snap = await getDocs(q);
+        setRewardProducts(snap.docs.map(d => d.data().name));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingRewardProducts(false);
+      }
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -89,16 +157,56 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
         : (paymentMethodMock === 'apple_pay' || paymentMethodMock === 'google_pay');
       const code = orderType === 'pickup' ? generateOrderCode() : '';
       
-      const orderData = {
-        items: cart.map(item => ({
-          productId: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          modifiers: item.modifiers || '',
-          sectionId: item.sectionId || '',
+      // Fidelidad: Añadir producto falso si se canjea
+      const finalItems = cart.map(item => ({
+        productId: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        taxRate: item.taxRate || 10,
+        modifiers: item.modifiers || '',
+        sectionId: item.sectionId || '',
+        status: 'PENDING'
+      }));
+
+      if (claimingReward && rewardItemText) {
+        finalItems.push({
+          productId: 'reward',
+          name: `🎁 PREMIO (${globalSettings.loyaltyRewardText || 'Gratis'}): ${rewardItemText}`,
+          quantity: 1,
+          price: 0,
+          taxRate: 0,
+          modifiers: '',
+          sectionId: '',
           status: 'PENDING'
-        })),
+        });
+      }
+
+      // Datos de Fidelidad para el ticket (tracking)
+      let currentOrderCount = 1;
+      let currentHasReward = false;
+      const required = Number(globalSettings.loyaltyOrdersRequired) || 10;
+
+      if (globalSettings.loyaltyEnabled && customerInfo.phone) {
+        if (loyaltyCustomer) {
+          if (claimingReward) {
+            currentOrderCount = 0; // Acaba de gastar el premio
+            currentHasReward = false;
+          } else {
+            currentOrderCount = (loyaltyCustomer.orderCount || 0) + 1;
+            currentHasReward = loyaltyCustomer.hasReward || (currentOrderCount >= required);
+            if (currentOrderCount >= required && !loyaltyCustomer.hasReward) {
+              currentOrderCount = 0; // Reinicia para la siguiente vuelta
+            }
+          }
+        } else {
+          currentOrderCount = 1;
+          currentHasReward = (required === 1);
+        }
+      }
+
+      const orderData = {
+        items: finalItems,
         subtotal,
         total,
         deliveryFee: orderType === 'delivery' ? deliveryFee : 0,
@@ -109,28 +217,51 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
         paymentMethod: paymentMethodMock,
         status: 'Nuevos Pedidos', 
         source: isPosMode ? 'Local/POS' : 'Customer Web',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        loyaltyStatus: globalSettings.loyaltyEnabled ? {
+          orderCount: currentOrderCount,
+          hasReward: currentHasReward,
+          required: required,
+          rewardText: globalSettings.loyaltyRewardText || 'Premio'
+        } : null
       };
       
       const docRef = await addDoc(collection(db, 'orders'), orderData);
 
-      // Save customer to CRM
-      if (customerInfo.email && customerInfo.phone) {
+      // Save customer to CRM (Fidelidad)
+      if (globalSettings.loyaltyEnabled && customerInfo.phone) {
         try {
           const customerData = {
-            name: customerInfo.name,
-            email: customerInfo.email,
+            name: customerInfo.name || loyaltyCustomer?.name || '',
+            email: customerInfo.email || loyaltyCustomer?.email || '',
             phone: customerInfo.phone,
-            address: customerInfo.address || '',
-            postalCode: customerInfo.postalCode || '',
+            address: customerInfo.address || loyaltyCustomer?.address || '',
+            postalCode: customerInfo.postalCode || loyaltyCustomer?.postalCode || '',
             lastOrderDate: serverTimestamp(),
-            source: 'Customer Web'
+            source: 'Customer Web',
+            orderCount: currentOrderCount,
+            hasReward: currentHasReward
           };
-          // Just add a new customer doc for MVP. A real app would check if they exist by email/phone to merge.
-          await addDoc(collection(db, 'customers'), customerData);
+          
+          if (loyaltyCustomer?.id) {
+            // Actualizar existente
+            await updateDoc(doc(db, 'customers', loyaltyCustomer.id), customerData);
+          } else {
+            // Crear nuevo
+            await addDoc(collection(db, 'customers'), customerData);
+          }
         } catch (crmError) {
           console.error("Error saving to CRM: ", crmError);
         }
+      } else if (customerInfo.email && customerInfo.phone) {
+        // Fallback básico original
+        try {
+          await addDoc(collection(db, 'customers'), {
+            name: customerInfo.name, email: customerInfo.email, phone: customerInfo.phone,
+            address: customerInfo.address, postalCode: customerInfo.postalCode,
+            lastOrderDate: serverTimestamp(), source: 'Customer Web'
+          });
+        } catch (e) { }
       }
       
       onEmptyCart();
@@ -337,6 +468,76 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                   <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder={isPosMode ? "Teléfono (Opcional)" : "Teléfono de contacto"} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
                 </div>
                 
+                {/* Fidelidad: Aviso de Premio */}
+                {globalSettings.loyaltyEnabled && loyaltyCustomer?.hasReward && !claimingReward && (
+                  <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-xl p-4 text-white shadow-lg animate-fade-in-up mt-2">
+                    <div className="flex items-center gap-3 mb-2">
+                      <Gift className="w-6 h-6 animate-bounce" />
+                      <h4 className="font-black text-lg">¡Premio Disponible!</h4>
+                    </div>
+                    <p className="text-sm text-red-100 mb-3">Tienes derecho a: <strong className="text-white bg-red-700/50 px-2 py-0.5 rounded">{globalSettings.loyaltyRewardText}</strong></p>
+                    {showRewardModal ? (
+                      <div className="space-y-2 mt-3 pt-3 border-t border-red-400/50">
+                        {globalSettings.loyaltyRewardCategory ? (
+                          <select 
+                            value={rewardItemText} 
+                            onChange={(e) => setRewardItemText(e.target.value)}
+                            className="w-full rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-white"
+                          >
+                            <option value="">Selecciona tu premio...</option>
+                            {loadingRewardProducts ? (
+                              <option disabled>Cargando opciones...</option>
+                            ) : (
+                              rewardProducts.map((p, i) => <option key={i} value={p}>{p}</option>)
+                            )}
+                          </select>
+                        ) : (
+                          <input 
+                            type="text" 
+                            placeholder="¿Qué deseas pedir de regalo?" 
+                            value={rewardItemText} 
+                            onChange={(e) => setRewardItemText(e.target.value)} 
+                            className="w-full rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-white"
+                            autoFocus
+                          />
+                        )}
+                        <div className="flex gap-2">
+                          <button onClick={() => setShowRewardModal(false)} className="px-3 py-2 text-sm bg-red-700 hover:bg-red-800 rounded-lg transition-colors flex-1 font-medium">Cancelar</button>
+                          <button 
+                            onClick={() => {
+                              if (rewardItemText.trim()) {
+                                setClaimingReward(true);
+                                setShowRewardModal(false);
+                              }
+                            }} 
+                            className="px-3 py-2 text-sm bg-white text-red-600 hover:bg-gray-50 rounded-lg transition-colors flex-1 font-bold"
+                          >
+                            Añadir Regalo
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={handleOpenReward} className="w-full bg-white text-red-600 font-black py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors shadow-sm">
+                        Canjear Premio Ahora
+                      </button>
+                    )}
+                  </div>
+                )}
+                
+                {/* Fidelidad: Premio Reclamado visualmente */}
+                {claimingReward && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3 mt-2">
+                    <div className="bg-green-100 p-2 rounded-full text-green-600 shrink-0">
+                      <Gift className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-green-900 text-sm">Premio Añadido ({globalSettings.loyaltyRewardText})</h4>
+                      <p className="text-sm text-green-700 font-medium">1x {rewardItemText}</p>
+                      <button onClick={() => setClaimingReward(false)} className="text-xs text-green-600 hover:text-green-800 underline mt-1 font-bold">Cancelar Premio</button>
+                    </div>
+                  </div>
+                )}
+                
                 {!isPosMode && (
                   <>
                     <div className="relative">
@@ -370,6 +571,25 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                 </div>
               </div>
 
+              {/* Contenedor de Stripe dentro de la zona con scroll */}
+              {showOnlinePayment && (
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                  <button onClick={() => setShowOnlinePayment(false)} className="text-sm text-gray-500 font-bold hover:text-gray-900 flex items-center w-full mb-2">
+                    <ArrowRight className="w-4 h-4 mr-1 rotate-180" />
+                    Volver a métodos de pago
+                  </button>
+                  <StripeCheckout 
+                    amount={total} 
+                    connectedAccountId={globalSettings.stripeAccountId} 
+                    onPaymentSuccess={() => handleCheckout('Pago Online (Stripe)', true)}
+                    onPaymentError={(err) => {
+                      alert('El pago no pudo procesarse. Intenta de nuevo.');
+                      console.error(err);
+                    }}
+                  />
+                </div>
+              )}
+
             </div>
 
             {/* Faldón de Pago */}
@@ -383,6 +603,12 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Envío</span>
                     <span>{deliveryFee.toFixed(2)}€</span>
+                  </div>
+                )}
+                {stripeSurcharge > 0 && showOnlinePayment && (
+                  <div className="flex justify-between text-sm text-blue-600 font-medium">
+                    <span>Gastos de gestión (Pago Online)</span>
+                    <span>+{stripeSurcharge.toFixed(2)}€</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-2 border-t border-gray-100">
@@ -406,22 +632,34 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                     <span>Cobrar con Tarjeta Ahora</span>
                   </button>
                 </div>
-              ) : orderType === 'pickup' ? (
-                <div className="space-y-3">
-                  <div className="text-xs text-center text-gray-500 font-semibold mb-2">PAGO OBLIGATORIO PARA RECOGER</div>
-                  <button onClick={() => handleCheckout('apple_pay')} disabled={isCheckingOut} className="w-full bg-black hover:bg-gray-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
-                    <Apple className="w-5 h-5" /> <span>Pagar con Apple Pay</span>
-                  </button>
-                  <button onClick={() => handleCheckout('google_pay')} disabled={isCheckingOut} className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-900 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google" className="w-4 h-4" />
-                    <span>Pagar con Google Pay</span>
-                  </button>
+              ) : showOnlinePayment ? (
+                // El formulario está arriba, aquí no mostramos botones extra
+                <div className="text-center text-sm text-gray-500">
+                  Rellena los datos de pago arriba para completar el pedido.
                 </div>
               ) : (
-                <button onClick={() => handleCheckout('cash')} disabled={isCheckingOut} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-red-600/30 disabled:opacity-70">
-                  <CreditCard className="w-5 h-5" />
-                  <span>Pedir y Pagar al Repartidor</span>
-                </button>
+                <div className="space-y-3">
+                  {orderType === 'pickup' && (
+                    <div className="text-xs text-center text-gray-500 font-semibold mb-2">SELECCIONA MÉTODO DE PAGO</div>
+                  )}
+                  {hasStripe && (
+                    <button onClick={() => setShowOnlinePayment(true)} disabled={isCheckingOut} className="w-full bg-[#635BFF] hover:bg-[#4B45D6] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg disabled:opacity-70">
+                      <CreditCard className="w-5 h-5" />
+                      <span>Pago Seguro Online (Apple/Google Pay)</span>
+                    </button>
+                  )}
+                  
+                  {orderType === 'pickup' ? (
+                    <button onClick={() => handleCheckout('Pago en Local')} disabled={isCheckingOut} className="w-full bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-900 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
+                      <Store className="w-5 h-5" /> <span>Pagar al recoger en Local</span>
+                    </button>
+                  ) : (
+                    <button onClick={() => handleCheckout('Pago a Repartidor')} disabled={isCheckingOut} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-red-600/30 disabled:opacity-70">
+                      <CreditCard className="w-5 h-5" />
+                      <span>Pedir y Pagar al Repartidor</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </>

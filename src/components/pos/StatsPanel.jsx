@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { BarChart3, Banknote, CreditCard, ShoppingBag, TrendingUp, CheckCircle2, Calendar, ListOrdered, AlertCircle } from 'lucide-react';
+import { BarChart3, Banknote, CreditCard, ShoppingBag, TrendingUp, CheckCircle2, Calendar, ListOrdered, AlertCircle, Download } from 'lucide-react';
 import StatCard from './StatCard';
 
 const StatsPanel = () => {
@@ -198,6 +198,75 @@ const StatsPanel = () => {
     }
   };
 
+  const handleExportCSV = async () => {
+    try {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      const q = query(
+        collection(db, 'orders'),
+        where('createdAt', '>=', start),
+        where('createdAt', '<=', end)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      let csvContent = "Fecha,ID Pedido,Metodo Pago,Total IVA 10%,Total IVA 21%,Base Imponible Total,Cuota IVA Total,Total Cobrado,Factura Oficial\n";
+
+      querySnapshot.forEach(docSnap => {
+        const orderData = docSnap.data();
+        if (orderData.status === 'CANCELED') return;
+        
+        let total10 = 0;
+        let total21 = 0;
+        let total4 = 0;
+        let total0 = 0;
+
+        if (orderData.items) {
+          orderData.items.forEach(item => {
+            const tax = Number(item.taxRate) || 10;
+            const itemTotal = item.price * item.quantity;
+            if (tax === 10) total10 += itemTotal;
+            else if (tax === 21) total21 += itemTotal;
+            else if (tax === 4) total4 += itemTotal;
+            else if (tax === 0) total0 += itemTotal;
+          });
+        }
+        
+        if (orderData.deliveryFee) total10 += orderData.deliveryFee;
+
+        const base10 = total10 / 1.10;
+        const iva10 = total10 - base10;
+        const base21 = total21 / 1.21;
+        const iva21 = total21 - base21;
+
+        const totalBase = base10 + base21 + total4/1.04 + total0;
+        const totalIVA = iva10 + iva21 + (total4 - total4/1.04);
+        
+        const dateStr = orderData.createdAt?.toDate().toLocaleDateString('es-ES') || '';
+        const orderId = docSnap.id;
+        const isFactura = orderData.invoiceId ? 'SI' : 'NO';
+        const method = orderData.paymentMethod === 'cash' ? 'Efectivo' : 'Tarjeta';
+
+        csvContent += `${dateStr},${orderId},${method},${total10.toFixed(2)},${total21.toFixed(2)},${totalBase.toFixed(2)},${totalIVA.toFixed(2)},${Number(orderData.total).toFixed(2)},${isFactura}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Contabilidad_Pizzeria_${startDate}_al_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch(err) {
+      console.error(err);
+      alert('Error exportando CSV');
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header and Date Picker */}
@@ -231,6 +300,13 @@ const StatsPanel = () => {
             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition-colors ml-2"
           >
             Actualizar
+          </button>
+          <button 
+            onClick={handleExportCSV}
+            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-bold transition-colors ml-2 flex items-center gap-1 border border-blue-200"
+          >
+            <Download className="w-4 h-4" />
+            CSV Gestoría
           </button>
         </div>
       </div>

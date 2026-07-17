@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { ChefHat, CheckCircle2, Bike, Store, Utensils, ArrowLeft, Clock, Gift, FileText } from 'lucide-react';
+import { ChefHat, CheckCircle2, Bike, Store, Utensils, ArrowLeft, Clock, Gift, FileText, Loader2 } from 'lucide-react';
 
 const OrderTracking = () => {
   const { orderId } = useParams();
@@ -54,6 +54,33 @@ const OrderTracking = () => {
       }
     };
     fetchSettings();
+
+    const verifyStripeRedirect = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectStatus = urlParams.get('redirect_status');
+      const paymentIntent = urlParams.get('payment_intent');
+
+      if (redirectStatus === 'succeeded' && paymentIntent) {
+        try {
+          const docRef = doc(db, 'orders', orderId);
+          const snap = await getDoc(docRef);
+          if (snap.exists() && snap.data().status === 'PAYMENT_PENDING') {
+            await updateDoc(docRef, {
+              status: 'Nuevos Pedidos',
+              paymentStatus: 'Pagado',
+              stripePaymentIntentId: paymentIntent
+            });
+            // Clear cart from localstorage as fallback since React state was wiped
+            localStorage.removeItem('pizzeria_cart');
+          }
+        } catch (err) {
+          console.error("Error updating order after redirect:", err);
+        }
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+    verifyStripeRedirect();
 
     return () => unsub();
   }, [orderId]);

@@ -5,7 +5,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 // Esto usa el Publishable Key de la plataforma
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_PLACEHOLDER_MOCK');
 
-const CheckoutForm = ({ amount, onPaymentSuccess, onPaymentError }) => {
+const CheckoutForm = ({ amount, createPendingOrder, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState(null);
@@ -25,10 +25,26 @@ const CheckoutForm = ({ amount, onPaymentSuccess, onPaymentError }) => {
       return;
     }
 
+    // 1. Create draft order
+    let pendingOrderId = null;
+    if (createPendingOrder) {
+      pendingOrderId = await createPendingOrder();
+      if (!pendingOrderId) {
+        setError("Error al crear el pedido borrador. Revisa los datos.");
+        setProcessing(false);
+        return;
+      }
+    }
+
+    // 2. Confirm payment
+    const returnUrl = pendingOrderId 
+      ? `${window.location.origin}/pedido/${pendingOrderId}` 
+      : window.location.origin;
+
     const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: window.location.origin,
+        return_url: returnUrl,
       },
       redirect: 'if_required'
     });
@@ -37,7 +53,7 @@ const CheckoutForm = ({ amount, onPaymentSuccess, onPaymentError }) => {
       setError(confirmError.message);
       onPaymentError(confirmError);
     } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-      onPaymentSuccess(paymentIntent);
+      onPaymentSuccess(paymentIntent, pendingOrderId);
     }
     setProcessing(false);
   };
@@ -60,7 +76,7 @@ const CheckoutForm = ({ amount, onPaymentSuccess, onPaymentError }) => {
   );
 };
 
-const StripeCheckout = ({ amount, connectedAccountId, onPaymentSuccess, onPaymentError }) => {
+const StripeCheckout = ({ amount, connectedAccountId, createPendingOrder, onPaymentSuccess, onPaymentError }) => {
   const [clientSecret, setClientSecret] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -94,7 +110,12 @@ const StripeCheckout = ({ amount, connectedAccountId, onPaymentSuccess, onPaymen
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
       <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
-        <CheckoutForm amount={amount} onPaymentSuccess={onPaymentSuccess} onPaymentError={onPaymentError} />
+        <CheckoutForm 
+          amount={amount} 
+          createPendingOrder={createPendingOrder} 
+          onPaymentSuccess={onPaymentSuccess} 
+          onPaymentError={onPaymentError} 
+        />
       </Elements>
     </div>
   );

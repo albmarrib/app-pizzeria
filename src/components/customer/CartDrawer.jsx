@@ -149,120 +149,150 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
         return alert("El nombre, email y teléfono son obligatorios para recoger en tienda.");
       }
     }
+    return true; // Validated
+  };
+
+  const buildAndSaveOrder = async (paymentMethodMock, initialStatus, paymentStatusMock) => {
+    const isPaid = isPosMode 
+      ? (paymentMethodMock === 'cash' || paymentMethodMock === 'card')
+      : (paymentMethodMock === 'apple_pay' || paymentMethodMock === 'google_pay');
+    
+    // For pending Stripe orders, we overwrite isPaid based on arguments
+    const finalPaymentStatus = paymentStatusMock || (isPaid ? 'Pagado' : 'Pendiente');
+    const code = orderType === 'pickup' ? generateOrderCode() : '';
+    
+    // Fidelidad: Añadir producto falso si se canjea
+    const finalItems = cart.map(item => ({
+      productId: item.id,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      taxRate: item.taxRate || 10,
+      modifiers: item.modifiers || '',
+      sectionId: item.sectionId || '',
+      status: 'PENDING'
+    }));
+
+    if (claimingReward && rewardItemText) {
+      finalItems.push({
+        productId: 'reward',
+        name: `🎁 PREMIO (${globalSettings.loyaltyRewardText || 'Gratis'}): ${rewardItemText}`,
+        quantity: 1,
+        price: 0,
+        taxRate: 0,
+        modifiers: '',
+        sectionId: '',
+        status: 'PENDING'
+      });
+    }
+
+    // Datos de Fidelidad para el ticket (tracking)
+    let currentOrderCount = 1;
+    let currentHasReward = false;
+    const required = Number(globalSettings.loyaltyOrdersRequired) || 10;
+
+    if (globalSettings.loyaltyEnabled && customerInfo.phone) {
+      if (loyaltyCustomer) {
+        if (claimingReward) {
+          currentOrderCount = 0; // Acaba de gastar el premio
+          currentHasReward = false;
+        } else {
+          currentOrderCount = (loyaltyCustomer.orderCount || 0) + 1;
+          currentHasReward = loyaltyCustomer.hasReward || (currentOrderCount >= required);
+          if (currentOrderCount >= required && !loyaltyCustomer.hasReward) {
+            currentOrderCount = 0; // Reinicia para la siguiente vuelta
+          }
+        }
+      } else {
+        currentOrderCount = 1;
+        currentHasReward = (required === 1);
+      }
+    }
+
+    const orderData = {
+      items: finalItems,
+      subtotal,
+      total,
+      deliveryFee: orderType === 'delivery' ? deliveryFee : 0,
+      customerInfo,
+      orderType,
+      orderCode: code,
+      paymentStatus: finalPaymentStatus,
+      paymentMethod: paymentMethodMock,
+      status: initialStatus || 'Nuevos Pedidos', 
+      source: isPosMode ? 'Local/POS' : 'Customer Web',
+      createdAt: serverTimestamp(),
+      loyaltyStatus: globalSettings.loyaltyEnabled ? {
+        orderCount: currentOrderCount,
+        hasReward: currentHasReward,
+        required: required,
+        rewardText: globalSettings.loyaltyRewardText || 'Premio'
+      } : null
+    };
+    
+    const docRef = await addDoc(collection(db, 'orders'), orderData);
+
+    // Save customer to CRM (Fidelidad)
+    if (globalSettings.loyaltyEnabled && customerInfo.phone) {
+      try {
+        const customerData = {
+          name: customerInfo.name || loyaltyCustomer?.name || '',
+          email: customerInfo.email || loyaltyCustomer?.email || '',
+          phone: customerInfo.phone,
+          address: customerInfo.address || loyaltyCustomer?.address || '',
+          postalCode: customerInfo.postalCode || loyaltyCustomer?.postalCode || '',
+          lastOrderDate: serverTimestamp(),
+          source: 'Customer Web',
+          orderCount: currentOrderCount,
+          hasReward: currentHasReward
+        };
+        
+        if (loyaltyCustomer?.id) {
+          // Actualizar existente
+          await updateDoc(doc(db, 'customers', loyaltyCustomer.id), customerData);
+        } else {
+          // Crear nuevo
+          await addDoc(collection(db, 'customers'), customerData);
+        }
+      } catch (crmError) {
+        console.error("Error saving to CRM: ", crmError);
+      }
+    } else if (customerInfo.email && customerInfo.phone) {
+      // Fallback básico original
+      try {
+        await addDoc(collection(db, 'customers'), {
+          name: customerInfo.name, email: customerInfo.email, phone: customerInfo.phone,
+          address: customerInfo.address, postalCode: customerInfo.postalCode,
+          lastOrderDate: serverTimestamp(), source: 'Customer Web'
+        });
+      } catch (e) { }
+    }
+
+    return { docRef, code };
+  };
+
+  const createPendingOrder = async () => {
+    if (cart.length === 0) return null;
+    const isValid = await validateOrder();
+    if (!isValid) return null;
+    
+    try {
+      const { docRef } = await buildAndSaveOrder('Pago Online (Stripe)', 'PAYMENT_PENDING', 'Procesando');
+      return docRef.id;
+    } catch (err) {
+      console.error("Error creating draft order: ", err);
+      return null;
+    }
+  };
+
+  const handleCheckout = async (paymentMethodMock = 'cash') => {
+    if (cart.length === 0) return;
+    const isValid = await validateOrder();
+    if (!isValid) return;
 
     setIsCheckingOut(true);
     try {
-      const isPaid = isPosMode 
-        ? (paymentMethodMock === 'cash' || paymentMethodMock === 'card')
-        : (paymentMethodMock === 'apple_pay' || paymentMethodMock === 'google_pay');
-      const code = orderType === 'pickup' ? generateOrderCode() : '';
-      
-      // Fidelidad: Añadir producto falso si se canjea
-      const finalItems = cart.map(item => ({
-        productId: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        taxRate: item.taxRate || 10,
-        modifiers: item.modifiers || '',
-        sectionId: item.sectionId || '',
-        status: 'PENDING'
-      }));
-
-      if (claimingReward && rewardItemText) {
-        finalItems.push({
-          productId: 'reward',
-          name: `🎁 PREMIO (${globalSettings.loyaltyRewardText || 'Gratis'}): ${rewardItemText}`,
-          quantity: 1,
-          price: 0,
-          taxRate: 0,
-          modifiers: '',
-          sectionId: '',
-          status: 'PENDING'
-        });
-      }
-
-      // Datos de Fidelidad para el ticket (tracking)
-      let currentOrderCount = 1;
-      let currentHasReward = false;
-      const required = Number(globalSettings.loyaltyOrdersRequired) || 10;
-
-      if (globalSettings.loyaltyEnabled && customerInfo.phone) {
-        if (loyaltyCustomer) {
-          if (claimingReward) {
-            currentOrderCount = 0; // Acaba de gastar el premio
-            currentHasReward = false;
-          } else {
-            currentOrderCount = (loyaltyCustomer.orderCount || 0) + 1;
-            currentHasReward = loyaltyCustomer.hasReward || (currentOrderCount >= required);
-            if (currentOrderCount >= required && !loyaltyCustomer.hasReward) {
-              currentOrderCount = 0; // Reinicia para la siguiente vuelta
-            }
-          }
-        } else {
-          currentOrderCount = 1;
-          currentHasReward = (required === 1);
-        }
-      }
-
-      const orderData = {
-        items: finalItems,
-        subtotal,
-        total,
-        deliveryFee: orderType === 'delivery' ? deliveryFee : 0,
-        customerInfo,
-        orderType,
-        orderCode: code,
-        paymentStatus: isPaid ? 'Pagado' : 'Pendiente',
-        paymentMethod: paymentMethodMock,
-        status: 'Nuevos Pedidos', 
-        source: isPosMode ? 'Local/POS' : 'Customer Web',
-        createdAt: serverTimestamp(),
-        loyaltyStatus: globalSettings.loyaltyEnabled ? {
-          orderCount: currentOrderCount,
-          hasReward: currentHasReward,
-          required: required,
-          rewardText: globalSettings.loyaltyRewardText || 'Premio'
-        } : null
-      };
-      
-      const docRef = await addDoc(collection(db, 'orders'), orderData);
-
-      // Save customer to CRM (Fidelidad)
-      if (globalSettings.loyaltyEnabled && customerInfo.phone) {
-        try {
-          const customerData = {
-            name: customerInfo.name || loyaltyCustomer?.name || '',
-            email: customerInfo.email || loyaltyCustomer?.email || '',
-            phone: customerInfo.phone,
-            address: customerInfo.address || loyaltyCustomer?.address || '',
-            postalCode: customerInfo.postalCode || loyaltyCustomer?.postalCode || '',
-            lastOrderDate: serverTimestamp(),
-            source: 'Customer Web',
-            orderCount: currentOrderCount,
-            hasReward: currentHasReward
-          };
-          
-          if (loyaltyCustomer?.id) {
-            // Actualizar existente
-            await updateDoc(doc(db, 'customers', loyaltyCustomer.id), customerData);
-          } else {
-            // Crear nuevo
-            await addDoc(collection(db, 'customers'), customerData);
-          }
-        } catch (crmError) {
-          console.error("Error saving to CRM: ", crmError);
-        }
-      } else if (customerInfo.email && customerInfo.phone) {
-        // Fallback básico original
-        try {
-          await addDoc(collection(db, 'customers'), {
-            name: customerInfo.name, email: customerInfo.email, phone: customerInfo.phone,
-            address: customerInfo.address, postalCode: customerInfo.postalCode,
-            lastOrderDate: serverTimestamp(), source: 'Customer Web'
-          });
-        } catch (e) { }
-      }
+      const { docRef, code } = await buildAndSaveOrder(paymentMethodMock);
       
       onEmptyCart();
 
@@ -580,8 +610,17 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                   </button>
                   <StripeCheckout 
                     amount={total} 
-                    connectedAccountId={globalSettings.stripeAccountId} 
-                    onPaymentSuccess={() => handleCheckout('Pago Online (Stripe)', true)}
+                    connectedAccountId={globalSettings.stripeAccountId}
+                    createPendingOrder={createPendingOrder}
+                    onPaymentSuccess={async (paymentIntent, pendingOrderId) => {
+                      // Solo para pagos exitosos SIN redirección bancaria
+                      // Encontramos el último pedido (que se acaba de crear como PAYMENT_PENDING)
+                      onEmptyCart();
+                      handleClose();
+                      if (pendingOrderId) {
+                        navigate(`/pedido/${pendingOrderId}`);
+                      }
+                    }}
                     onPaymentError={(err) => {
                       alert('El pago no pudo procesarse. Intenta de nuevo.');
                       console.error(err);

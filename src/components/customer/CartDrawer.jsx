@@ -127,12 +127,13 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
     }));
   };
 
-  const handleCheckout = async (paymentMethodMock = 'cash') => {
-    if (cart.length === 0) return;
+  const validateOrder = async () => {
+    if (cart.length === 0) return false;
     
     if (orderType === 'delivery') {
       if (!customerInfo.address.trim() || !customerInfo.phone.trim() || !customerInfo.postalCode.trim() || (!isPosMode && (!customerInfo.name.trim() || !customerInfo.email.trim()))) {
-        return alert(isPosMode ? "Por favor, rellena teléfono, dirección y código postal." : "Por favor, rellena nombre, email, teléfono, dirección y código postal.");
+        alert(isPosMode ? "Por favor, rellena teléfono, dirección y código postal." : "Por favor, rellena nombre, email, teléfono, dirección y código postal.");
+        return false;
       }
       // Validación real de SaaS
       const docSnap = await getDoc(doc(db, 'settings', 'general'));
@@ -141,12 +142,14 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
       if (settings.deliveryType === 'postal_codes') {
         const validCodes = (settings.postalCodes || '').split(',').map(c => c.trim());
         if (!validCodes.includes(customerInfo.postalCode.trim())) {
-          return alert(`Lo sentimos, no repartimos en el código postal ${customerInfo.postalCode}.`);
+          alert(`Lo sentimos, no repartimos en el código postal ${customerInfo.postalCode}.`);
+          return false;
         }
       }
     } else if (orderType === 'pickup' && !isPosMode) {
       if (!customerInfo.name.trim() || !customerInfo.email.trim() || !customerInfo.phone.trim()) {
-        return alert("El nombre, email y teléfono son obligatorios para recoger en tienda.");
+        alert("El nombre, email y teléfono son obligatorios para recoger en tienda.");
+        return false;
       }
     }
     return true; // Validated

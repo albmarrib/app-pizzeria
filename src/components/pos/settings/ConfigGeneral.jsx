@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, storage } from '../../../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Save, Info, MapPin, Store, Clock, Upload, X, User, FileText, CheckCircle2 } from 'lucide-react';
@@ -103,6 +103,45 @@ const ConfigGeneral = () => {
     } catch (error) {
       console.error("Error saving settings:", error);
       alert('Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFactoryReset = async () => {
+    const pwd = window.prompt('PELIGRO: Vas a borrar todos los pedidos, clientes y estadísticas. Introduce la contraseña maestra para confirmar:');
+    if (pwd !== settings.adminPassword) {
+      if (pwd !== null) alert('Contraseña incorrecta');
+      return;
+    }
+
+    if (!window.confirm('¿ESTÁS ABSOLUTAMENTE SEGURO? Esta acción dejará tu panel totalmente limpio.')) return;
+
+    setSaving(true);
+    try {
+      // Borrar pedidos
+      const ordersSnap = await getDocs(collection(db, 'orders'));
+      for (const orderDoc of ordersSnap.docs) {
+        await deleteDoc(doc(db, 'orders', orderDoc.id));
+      }
+      
+      // Borrar estadísticas
+      const statsSnap = await getDocs(collection(db, 'stats'));
+      for (const statDoc of statsSnap.docs) {
+        await deleteDoc(doc(db, 'stats', statDoc.id));
+      }
+
+      // Borrar clientes (para fidelidad)
+      const custSnap = await getDocs(collection(db, 'customers'));
+      for (const cDoc of custSnap.docs) {
+        await deleteDoc(doc(db, 'customers', cDoc.id));
+      }
+
+      alert('Base de datos reseteada correctamente. Sistema a cero.');
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert('Error al resetear: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -213,6 +252,14 @@ const ConfigGeneral = () => {
             </label>
             <p className="text-xs text-gray-500 mb-3">Si un pedido supera este tiempo desde su creación, su tarjeta parpadeará en rojo en el Kanban para alertar a la cocina.</p>
             <input type="number" name="orderAlarmMinutes" value={settings.orderAlarmMinutes} onChange={handleChange} className="w-full sm:w-1/2 border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none" />
+          </div>
+
+          <div className="pt-4 border-t border-gray-100 bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" name="autoPrintTickets" checked={settings.autoPrintTickets || false} onChange={handleChange} className="w-5 h-5 rounded text-gray-900 focus:ring-gray-900" />
+              <span className="font-bold text-gray-900">Auto-imprimir tickets de cocina</span>
+            </label>
+            <p className="text-xs text-gray-500 mt-2 ml-8">Se imprimirá un ticket automáticamente cuando un producto pase a la columna final ('Listo') en el Kanban. Activar el Modo Kiosko en Chrome para evitar la ventana de impresión.</p>
           </div>
 
           <div className="pt-4 border-t border-gray-100">
@@ -359,7 +406,15 @@ const ConfigGeneral = () => {
         </div>
       </div>
 
-      <div className="mt-10 pt-6 border-t border-gray-100 flex justify-end">
+      <div className="mt-10 pt-6 border-t border-gray-100 flex justify-between items-center">
+        <button 
+          onClick={handleFactoryReset}
+          disabled={saving}
+          className="text-red-500 hover:text-red-700 font-bold text-sm px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+        >
+          Borrar Base de Datos (Reset a 0)
+        </button>
+
         <button 
           onClick={handleSave}
           disabled={saving}

@@ -15,7 +15,7 @@ const generateOrderCode = () => {
   return result;
 };
 
-const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orderType, setOrderType, isPosMode = false }) => {
+const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAdd, orderType, setOrderType, isPosMode = false }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1); // 1: Carrito, 2: Datos
   
@@ -110,7 +110,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
       try {
         const q = query(collection(db, 'products'), where('category', '==', globalSettings.loyaltyRewardCategory));
         const snap = await getDocs(q);
-        setRewardProducts(snap.docs.map(d => d.data().name));
+        setRewardProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (err) {
         console.error(err);
       } finally {
@@ -175,19 +175,6 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
       sectionId: item.sectionId || '',
       status: 'PENDING'
     }));
-
-    if (claimingReward && rewardItemText) {
-      finalItems.push({
-        productId: 'reward',
-        name: `🎁 PREMIO (${globalSettings.loyaltyRewardText || 'Gratis'}): ${rewardItemText}`,
-        quantity: 1,
-        price: 0,
-        taxRate: 0,
-        modifiers: '',
-        sectionId: '',
-        status: 'PENDING'
-      });
-    }
 
     // Datos de Fidelidad para el ticket (tracking)
     let currentOrderCount = 1;
@@ -521,7 +508,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                             {loadingRewardProducts ? (
                               <option disabled>Cargando opciones...</option>
                             ) : (
-                              rewardProducts.map((p, i) => <option key={i} value={p}>{p}</option>)
+                              rewardProducts.map((p, i) => <option key={p.id} value={p.name}>{p.name}</option>)
                             )}
                           </select>
                         ) : (
@@ -541,6 +528,20 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                               if (rewardItemText.trim()) {
                                 setClaimingReward(true);
                                 setShowRewardModal(false);
+                                
+                                // Añadir al carrito real
+                                const selectedProduct = rewardProducts.find(p => p.name === rewardItemText);
+                                const rewardCartItem = {
+                                  id: selectedProduct?.id || 'reward',
+                                  cartItemId: 'reward_' + Date.now(),
+                                  name: `🎁 PREMIO: ${rewardItemText}`,
+                                  price: 0,
+                                  quantity: 1,
+                                  modifiers: 'GRATIS por Fidelidad',
+                                  sectionId: selectedProduct?.sectionId || '',
+                                  taxRate: 0
+                                };
+                                if(onAdd) onAdd(rewardCartItem, false);
                               }
                             }} 
                             className="px-3 py-2 text-sm bg-white text-red-600 hover:bg-gray-50 rounded-lg transition-colors flex-1 font-bold"
@@ -566,7 +567,16 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                     <div>
                       <h4 className="font-bold text-green-900 text-sm">Premio Añadido ({globalSettings.loyaltyRewardText})</h4>
                       <p className="text-sm text-green-700 font-medium">1x {rewardItemText}</p>
-                      <button onClick={() => setClaimingReward(false)} className="text-xs text-green-600 hover:text-green-800 underline mt-1 font-bold">Cancelar Premio</button>
+                      <button onClick={() => {
+                        setClaimingReward(false);
+                        // Eliminar el premio del carrito
+                        if(onAdd) { // Usamos el hook de app para limpiar o requerimos otra función, pero como cart se actualiza, la mejor forma es vaciarlo de recompensas.
+                           const rewardItem = cart.find(i => i.cartItemId && i.cartItemId.startsWith('reward_'));
+                           if(rewardItem) {
+                             onUpdateQuantity(rewardItem.cartItemId, -rewardItem.quantity); // Lo elimina
+                           }
+                        }
+                      }} className="text-xs text-green-600 hover:text-green-800 underline mt-1 font-bold">Cancelar Premio</button>
                     </div>
                   </div>
                 )}
@@ -687,14 +697,17 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, orde
                   {hasStripe && (
                     <button onClick={() => setShowOnlinePayment(true)} disabled={isCheckingOut} className="w-full bg-[#635BFF] hover:bg-[#4B45D6] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg disabled:opacity-70">
                       <CreditCard className="w-5 h-5" />
-                      <span>Pago Seguro Online (Apple/Google Pay)</span>
+                      <span>Pago Seguro Online (Tarjeta / Apple / Google Pay)</span>
                     </button>
                   )}
                   
+                  
                   {orderType === 'pickup' ? (
-                    <button onClick={() => handleCheckout('Pago en Local')} disabled={isCheckingOut} className="w-full bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-900 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
-                      <Store className="w-5 h-5" /> <span>Pagar al recoger en Local</span>
-                    </button>
+                    isPosMode && (
+                      <button onClick={() => handleCheckout('Pago en Local')} disabled={isCheckingOut} className="w-full bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-900 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
+                        <Store className="w-5 h-5" /> <span>Pagar al recoger en Local</span>
+                      </button>
+                    )
                   ) : (
                     <button onClick={() => handleCheckout('Pago a Repartidor')} disabled={isCheckingOut} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-red-600/30 disabled:opacity-70">
                       <CreditCard className="w-5 h-5" />

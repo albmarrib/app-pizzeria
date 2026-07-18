@@ -7,7 +7,6 @@ import CartDrawer from '../components/customer/CartDrawer';
 import Footer from '../components/customer/Footer';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { forceSeedProducts } from '../firebase/seed';
 import { ArrowLeft, MenuSquare, ArrowRight } from 'lucide-react';
 
 const CustomerWeb = () => {
@@ -237,19 +236,11 @@ const CustomerWeb = () => {
         cart={cart}
         onUpdateQuantity={updateQuantity}
         onEmptyCart={emptyCart}
+        onAdd={addToCart}
         globalSettings={globalSettings}
         orderType={orderType}
         setOrderType={setOrderType}
       />
-
-      {/* Botón oculto para forzar recarga de base de datos en caso de errores de estructura */}
-      <button 
-        onClick={forceSeedProducts}
-        className="fixed bottom-2 left-2 text-[10px] text-gray-300 hover:text-gray-500 z-50 bg-black/50 px-2 py-1 rounded"
-        title="Forzar actualización de BD (Alergenos e Ingredientes)"
-      >
-        DB Sync
-      </button>
     </div>
   );
 };

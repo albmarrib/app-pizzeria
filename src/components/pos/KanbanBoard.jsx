@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, Eye, User, ShoppingBag, Truck, Bike, X, Ban, MessageCircle } from 'lucide-react';
+import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, Eye, User, ShoppingBag, Truck, Bike, X, Ban, MessageCircle, Printer } from 'lucide-react';
 import { DndContext, useDraggable, useDroppable, closestCenter, DragOverlay, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
+import { printTicket } from '../../utils/printer';
 
 const EXPEDITOR_COLUMNS = ['Nuevos Pedidos', 'IN_PROGRESS', 'READY_FOR_ASSEMBLY', 'OUT_FOR_DELIVERY'];
 
@@ -83,7 +84,7 @@ const getWhatsAppLink = (order) => {
 };
 
 // Draggable Order Card Component
-const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery }) => {
+const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onPrintTicket }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: order.id,
     data: { order, currentColumn: column }
@@ -121,7 +122,16 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
 
       {/* Header */}
       <div className="flex justify-between items-start mb-2">
-        <OrderTypeTag type={order.orderType} />
+        <div className="flex gap-2">
+          <OrderTypeTag type={order.orderType} />
+          <button 
+            onClick={(e) => { e.stopPropagation(); onPrintTicket(order); }}
+            className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg shadow-sm border border-gray-200 transition-colors"
+            title="Imprimir etiquetas de cocina"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
+        </div>
         <span className="text-sm font-black text-gray-400 bg-white px-2 py-1 rounded-md border border-gray-200">
           #{order.id.slice(-4)}
         </span>
@@ -517,6 +527,9 @@ const KanbanBoard = () => {
   const [activeView, setActiveView] = useState('expeditor');
   const [activeDragId, setActiveDragId] = useState(null);
   const [modalColumn, setModalColumn] = useState(null); // 'Nuevos Pedidos', etc.
+  
+  const [globalSettings, setGlobalSettings] = useState(null);
+  const [autoPrintTickets, setAutoPrintTickets] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -540,11 +553,15 @@ const KanbanBoard = () => {
       const setSnap = await getDoc(doc(db, 'settings', 'general'));
       if (setSnap.exists()) {
         const data = setSnap.data();
+        setGlobalSettings(data);
         if (data.orderAlarmMinutes) {
           setAlarmMinutes(data.orderAlarmMinutes);
         }
         if (data.drivers) {
           setDrivers(data.drivers.split(',').map(d => d.trim()).filter(d => d));
+        }
+        if (data.autoPrintTickets !== undefined) {
+          setAutoPrintTickets(data.autoPrintTickets);
         }
       }
     };
@@ -620,6 +637,11 @@ const KanbanBoard = () => {
           items: newItems,
           status: newOrderStatus
         });
+        
+        // Auto-print check
+        if (autoPrintTickets && newStatus === activeColumns[activeColumns.length - 1]) {
+          printTicket(order, globalSettings, itemIndex, sections);
+        }
       } catch (error) {
         console.error("Error updating item status: ", error);
       }
@@ -732,6 +754,16 @@ const KanbanBoard = () => {
           items: newItems,
           status: newOrderStatus
         });
+        
+        // Auto-print check for Drag & Drop
+        if (autoPrintTickets && targetColumn === activeSectionColumns[activeSectionColumns.length - 1]) {
+          // Find which items were moved to trigger individual prints
+          order.items.forEach((item, idx) => {
+            if (item.sectionId === activeView && item.status !== targetColumn) {
+               printTicket(order, globalSettings, idx, sections);
+            }
+          });
+        }
       } catch (err) {
         console.error("Error guardando en Firebase: " + err.message);
       }
@@ -825,6 +857,7 @@ const KanbanBoard = () => {
                     now={now}
                     alarmMinutes={alarmMinutes}
                     onMoveToDelivery={handleMoveToDelivery}
+                    onPrintTicket={(o) => printTicket(o, globalSettings, null, sections)}
                   />
                 ))}
               </KanbanColumn>

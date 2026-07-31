@@ -5,7 +5,8 @@ import KanbanBoard from '../components/pos/KanbanBoard';
 import SettingsPanel from '../components/pos/SettingsPanel';
 import ManualOrderPanel from '../components/pos/ManualOrderPanel';
 import StatsPanel from '../components/pos/StatsPanel';
-import { LayoutDashboard, Settings, LogOut, Bell, ShoppingBag, BarChart3 } from 'lucide-react';
+import InvoiceManagerPanel from '../components/pos/InvoiceManagerPanel';
+import { LayoutDashboard, Settings, LogOut, Bell, ShoppingBag, BarChart3, FileText } from 'lucide-react';
 
 const POSDashboard = () => {
   const [activeTab, setActiveTab] = useState('pedidos');
@@ -77,6 +78,14 @@ const POSDashboard = () => {
             <BarChart3 className="w-6 h-6" />
             <span className="hidden lg:block">Estadísticas y Cierre</span>
           </button>
+          
+          <button 
+            onClick={() => setActiveTab('facturas')}
+            className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${activeTab === 'facturas' ? 'bg-red-50 text-red-600 font-semibold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
+          >
+            <FileText className="w-6 h-6" />
+            <span className="hidden lg:block">Facturas Nominativas</span>
+          </button>
         </nav>
         
         <div className="p-4 border-t border-gray-100">
@@ -115,6 +124,7 @@ const POSDashboard = () => {
           {activeTab === 'pedidos' && <KanbanBoard />}
           {activeTab === 'configuracion' && <SettingsPanel />}
           {activeTab === 'estadisticas' && <StatsPanel />}
+          {activeTab === 'facturas' && <InvoiceManagerPanel />}
         </div>
       </main>
     </div>

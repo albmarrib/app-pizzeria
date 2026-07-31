@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { BarChart3, Banknote, CreditCard, ShoppingBag, TrendingUp, CheckCircle2, Calendar, ListOrdered, AlertCircle, Download } from 'lucide-react';
+import { BarChart3, Banknote, CreditCard, ShoppingBag, TrendingUp, CheckCircle2, Calendar, ListOrdered, AlertCircle, Download, Receipt, FileText } from 'lucide-react';
 import StatCard from './StatCard';
 
 const StatsPanel = () => {
@@ -61,6 +61,8 @@ const StatsPanel = () => {
       let totalOrders = 0;
       let cashTotal = 0;
       let cardTotal = 0;
+      let invoiceTotal = 0;
+      let ticketTotal = 0;
       let activeCount = 0;
       const productCounts = {};
 
@@ -83,6 +85,12 @@ const StatsPanel = () => {
           cashTotal += amount;
         } else {
           cardTotal += amount;
+        }
+        
+        if (data.invoiceId) {
+          invoiceTotal += amount;
+        } else {
+          ticketTotal += amount;
         }
         
         if (data.items) {
@@ -123,7 +131,9 @@ const StatsPanel = () => {
         totalOrders,
         averageTicket,
         cashTotal,
-        cardTotal
+        cardTotal,
+        invoiceTotal,
+        ticketTotal
       });
       setProductRanking(ranking);
       setHasActiveOrders(activeCount > 0);
@@ -156,6 +166,8 @@ const StatsPanel = () => {
           averageTicket: 0,
           cashTotal: 0,
           cardTotal: 0,
+          invoiceTotal: 0,
+          ticketTotal: 0,
         });
         setProductRanking([]);
         setIsAlreadyClosed(true);
@@ -213,7 +225,7 @@ const StatsPanel = () => {
       
       const querySnapshot = await getDocs(q);
       
-      let csvContent = "Fecha,ID Pedido,Metodo Pago,Total IVA 10%,Total IVA 21%,Base Imponible Total,Cuota IVA Total,Total Cobrado,Factura Oficial\n";
+      let csvContent = "Fecha,ID Pedido,Metodo Pago,Total IVA 10%,Total IVA 21%,Base Imponible Total,Cuota IVA Total,Total Cobrado,Factura Nominativa\n";
 
       querySnapshot.forEach(docSnap => {
         const orderData = docSnap.data();
@@ -390,6 +402,24 @@ const StatsPanel = () => {
                     </h4>
                     <p className="text-4xl font-black text-gray-900">{stats.cardTotal.toFixed(2)}€</p>
                     <p className="text-xs text-gray-500 mt-2">Pagos digitales procesados</p>
+                  </div>
+                </div>
+
+                <h3 className="text-xl font-bold text-gray-900 mb-6 border-b border-gray-100 pb-4">Control para Gestoría</h3>
+                <div className="grid md:grid-cols-2 gap-6 mb-8">
+                  <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                    <h4 className="text-sm font-bold text-blue-700 mb-2 flex items-center gap-2">
+                      <FileText className="w-5 h-5" /> Facturas Nominativas
+                    </h4>
+                    <p className="text-4xl font-black text-blue-900">{stats.invoiceTotal.toFixed(2)}€</p>
+                    <p className="text-xs text-blue-600 mt-2">Ventas con Factura Nominativa</p>
+                  </div>
+                  <div className="bg-green-50 p-6 rounded-2xl border border-green-100">
+                    <h4 className="text-sm font-bold text-green-700 mb-2 flex items-center gap-2">
+                      <Receipt className="w-5 h-5" /> Tickets Simplificados
+                    </h4>
+                    <p className="text-4xl font-black text-green-900">{stats.ticketTotal.toFixed(2)}€</p>
+                    <p className="text-xs text-green-600 mt-2">Ventas de Mostrador (Sin cliente asignado)</p>
                   </div>
                 </div>
 

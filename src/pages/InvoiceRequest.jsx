@@ -244,11 +244,11 @@ const InvoiceRequest = () => {
                 {/* VeriFactu / FacturaSign info */}
                 <div className="mt-8 border-t-2 border-gray-900 pt-6 flex flex-col sm:flex-row gap-6 items-start">
                   <div className="bg-white p-1 border-2 border-black inline-block shrink-0">
-                    <QRCodeCanvas value={`https://pizzeria.com/factura/${order.id}?hash=${invoice.hash}`} size={90} level="M" />
+                    <QRCodeCanvas value={`https://www2.agenciatributaria.gob.es/wlpl/inwinv/es/zv/verifactu/qrc/?c=${settings?.legalNif || 'B12345678'}&s=${invoice.invoiceNumber}&d=${new Date(invoice.date).toLocaleDateString('es-ES').split('/').reverse().join('-')}&i=${invoice.total.toFixed(2)}`} size={90} level="M" />
                   </div>
                   <div className="text-[10px] sm:text-xs text-gray-500 font-mono break-all w-full">
-                    <p className="font-bold text-gray-900 mb-1">REGISTRO FACTURASIGN / TICKETBAI</p>
-                    <p>Factura encadenada mediante firma digital SHA-256 (Ley 11/2021 M. Antifraude).</p>
+                    <p className="font-bold text-gray-900 mb-1">REGISTRO VERI*FACTU</p>
+                    <p>Factura expedida por un sistema informático que cumple los requisitos del artículo 29.2.j) de la LGT.</p>
                     <p className="mt-2"><strong>Prev Hash:</strong> {invoice.previousHash || 'ROOT'}</p>
                     <p><strong>Hash Factura:</strong> {invoice.hash}</p>
                     <p className="mt-1">Firma electrónica válida. Registro en base de datos inalterable.</p>

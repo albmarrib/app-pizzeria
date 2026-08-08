@@ -18,10 +18,6 @@ const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
   return (
     <nav className="sticky top-0 z-40 bg-white shadow-sm h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8">
       <div className="flex items-center gap-4">
-        <button className="sm:hidden p-2 text-gray-600 hover:text-gray-900 transition-colors">
-          <Menu className="w-6 h-6" />
-        </button>
-        
         {(() => {
           const logoUrl = globalSettings?.logoUrl !== undefined ? globalSettings.logoUrl : '/logo.jpg';
           return (
@@ -46,13 +42,14 @@ const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
         })()}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <button 
           onClick={handlePosAccess}
-          className="hidden sm:flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors p-2 sm:p-0 rounded-full sm:rounded-none bg-gray-50 sm:bg-transparent hover:bg-gray-100 sm:hover:bg-transparent"
+          title="Zona Restaurante"
         >
-          <User className="w-5 h-5" />
-          <span>Zona Restaurante</span>
+          <User className="w-5 h-5 sm:w-5 sm:h-5" />
+          <span className="hidden sm:inline">Zona Restaurante</span>
         </button>
         
         <button 

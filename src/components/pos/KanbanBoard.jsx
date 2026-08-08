@@ -49,7 +49,7 @@ const KanbanColumn = ({ id, title, orderCount, children, colorClass, onHeaderCli
   const { setNodeRef, isOver } = useDroppable({ id });
   
   return (
-    <div ref={setNodeRef} className={`flex flex-col flex-shrink-0 w-[22rem] bg-gray-50/50 rounded-2xl border-2 h-full max-h-full transition-colors ${isOver ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`}>
+    <div ref={setNodeRef} className={`flex flex-col flex-shrink-0 w-[85vw] sm:w-[22rem] snap-center bg-gray-50/50 rounded-2xl border-2 h-full max-h-full transition-colors ${isOver ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`}>
       <div 
         onClick={onHeaderClick}
         className="p-4 border-b border-gray-200 flex items-center justify-between bg-white rounded-t-xl shadow-sm z-10 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -813,7 +813,7 @@ const KanbanBoard = () => {
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
-        <div className="flex gap-6 items-start overflow-x-auto pb-4 flex-1">
+        <div className="flex gap-4 sm:gap-6 items-start overflow-x-auto pb-4 flex-1 snap-x snap-mandatory px-4 sm:px-0">
           {columnsToRender.map((column) => {
             
             let columnOrders = [];

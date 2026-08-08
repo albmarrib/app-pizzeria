@@ -278,7 +278,7 @@ const ConfigGeneral = () => {
         </div>
 
         <div className="space-y-6">
-          <div className="flex gap-4 border-b border-gray-200">
+          <div className="flex gap-4 border-b border-gray-200 overflow-x-auto hide-scrollbar whitespace-nowrap">
             <button onClick={() => setActiveTab('fidelidad')} className={`pb-2 font-bold ${activeTab === 'fidelidad' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Fidelidad</button>
             <button onClick={() => setActiveTab('pagos')} className={`pb-2 font-bold ${activeTab === 'pagos' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Pagos Online</button>
             <button onClick={() => setActiveTab('legal')} className={`pb-2 font-bold ${activeTab === 'legal' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}>Datos Legales</button>
@@ -406,11 +406,11 @@ const ConfigGeneral = () => {
         </div>
       </div>
 
-      <div className="mt-10 pt-6 border-t border-gray-100 flex justify-between items-center">
+      <div className="mt-10 pt-6 border-t border-gray-100 flex flex-col-reverse sm:flex-row justify-between items-center gap-4">
         <button 
           onClick={handleFactoryReset}
           disabled={saving}
-          className="text-red-500 hover:text-red-700 font-bold text-sm px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+          className="text-red-500 hover:text-red-700 font-bold text-sm px-4 py-3 sm:py-2 w-full sm:w-auto border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 text-center"
         >
           Borrar Base de Datos (Reset a 0)
         </button>
@@ -418,7 +418,7 @@ const ConfigGeneral = () => {
         <button 
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 bg-black hover:bg-gray-800 text-white px-8 py-3 rounded-xl font-bold transition-colors disabled:opacity-50"
+          className="flex items-center justify-center gap-2 bg-black hover:bg-gray-800 text-white px-8 py-4 sm:py-3 w-full sm:w-auto rounded-xl font-bold transition-colors disabled:opacity-50"
         >
           <Save className="w-5 h-5" />
           {saving ? 'Guardando...' : 'Guardar Configuración'}

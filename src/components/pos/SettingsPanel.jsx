@@ -46,8 +46,8 @@ const SettingsPanel = () => {
       </div>
 
       {/* Settings Content Area */}
-      <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-        <div className="max-w-5xl mx-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 bg-gray-50">
+        <div className="max-w-5xl mx-auto w-full">
           {activeSubTab === 'general' && <ConfigGeneral />}
           {activeSubTab === 'categories' && <CategoriesManager />}
           {activeSubTab === 'sections' && <SectionsManager />}

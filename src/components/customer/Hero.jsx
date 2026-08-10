@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Clock, MenuSquare } from 'lucide-react';
+import { MapPin, Clock, MenuSquare, Pizza } from 'lucide-react';
 
 const Hero = ({ onViewMenu, orderType, setOrderType, globalSettings }) => {
   const pizzeriaName = globalSettings?.pizzeriaName || "";
@@ -21,8 +21,14 @@ const Hero = ({ onViewMenu, orderType, setOrderType, globalSettings }) => {
 
       {/* Content */}
       <div className="relative z-10 text-center px-4 max-w-4xl mx-auto flex flex-col items-center mt-12">
-        <h1 className="text-6xl md:text-8xl lg:text-9xl font-black text-white tracking-tighter mb-4 drop-shadow-2xl uppercase">
-          {firstName} <span className="text-red-600">{restName}</span>
+        <h1 className="text-6xl md:text-8xl lg:text-9xl font-black text-white tracking-tighter mb-4 drop-shadow-2xl uppercase flex justify-center items-center h-24 md:h-32 lg:h-40">
+          {globalSettings?.pizzeriaName ? (
+            <>
+              {firstName} <span className="text-red-600 ml-3 md:ml-6">{restName}</span>
+            </>
+          ) : (
+            <Pizza className="w-16 h-16 md:w-24 md:h-24 lg:w-32 lg:h-32 text-red-600 animate-spin" style={{ animationDuration: '3s' }} />
+          )}
         </h1>
         
         {/* Type Selector (Smaller) */}

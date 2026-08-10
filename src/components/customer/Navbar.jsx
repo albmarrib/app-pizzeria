@@ -32,9 +32,9 @@ const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
               <div className="text-2xl font-black tracking-tight text-red-600 hidden sm:block">
                 {globalSettings?.pizzeriaName ? (
                   globalSettings.pizzeriaName.split(' ')[0]
-                ) : "SLICE"}
+                ) : ""}
                 <span className="text-gray-900">
-                  {globalSettings?.pizzeriaName ? globalSettings.pizzeriaName.split(' ').slice(1).join(' ') : "SAAS"}
+                  {globalSettings?.pizzeriaName ? globalSettings.pizzeriaName.split(' ').slice(1).join(' ') : ""}
                 </span>
               </div>
             </div>

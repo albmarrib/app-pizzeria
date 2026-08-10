@@ -41,9 +41,9 @@ const POSDashboard = () => {
           <div className="text-xl font-black text-red-600">
             {globalSettings?.pizzeriaName ? (
               globalSettings.pizzeriaName.split(' ')[0]
-            ) : "SLICE"}
+            ) : ""}
             <span className="text-gray-900">
-              {globalSettings?.pizzeriaName ? globalSettings.pizzeriaName.split(' ').slice(1).join(' ') : "POS"}
+              {globalSettings?.pizzeriaName ? globalSettings.pizzeriaName.split(' ').slice(1).join(' ') : ""}
             </span>
           </div>
         </div>

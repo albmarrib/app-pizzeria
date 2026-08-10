@@ -2,7 +2,7 @@ import React from 'react';
 import { Phone, MessageCircle, MapPin } from 'lucide-react';
 
 const Footer = ({ globalSettings }) => {
-  const name = globalSettings?.pizzeriaName || 'Slice Pizza';
+  const name = globalSettings?.pizzeriaName || '';
   const spaceIndex = name.indexOf(' ');
   const firstPart = spaceIndex > -1 ? name.substring(0, spaceIndex) : name;
   const secondPart = spaceIndex > -1 ? name.substring(spaceIndex + 1) : '';

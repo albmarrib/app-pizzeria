@@ -6,7 +6,7 @@ import { Save, Info, MapPin, Store, Clock, Upload, X, User, FileText, CheckCircl
 
 const ConfigGeneral = () => {
   const [settings, setSettings] = useState({
-    pizzeriaName: 'SLICE',
+    pizzeriaName: '',
     phone: '',
     address: '',
     legalName: '',

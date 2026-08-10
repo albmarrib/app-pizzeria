@@ -1,6 +1,6 @@
 export const printTicket = (order, settings, specificItemIndex = null) => {
   // Configuración de la empresa
-  const companyName = settings?.pizzeriaName || "SLICE PIZZA";
+  const companyName = settings?.pizzeriaName || "";
   
   // 1. Calcular TODAS las cajas del pedido globalmente para una numeración consistente (X de Y)
   let globalBoxes = [];

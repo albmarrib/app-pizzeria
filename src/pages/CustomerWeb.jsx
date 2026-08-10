@@ -12,7 +12,10 @@ import { ArrowLeft, MenuSquare, ArrowRight } from 'lucide-react';
 const CustomerWeb = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [globalSettings, setGlobalSettings] = useState({});
+  const [globalSettings, setGlobalSettings] = useState(() => {
+    const cached = localStorage.getItem('cachedGlobalSettings');
+    return cached ? JSON.parse(cached) : {};
+  });
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -44,6 +47,7 @@ const CustomerWeb = () => {
     const unsubSettings = onSnapshot(collection(db, 'settings'), (snap) => {
       const settingsData = snap.docs.find(d => d.id === 'general')?.data() || {};
       setGlobalSettings(settingsData);
+      localStorage.setItem('cachedGlobalSettings', JSON.stringify(settingsData));
       setLoading(false); // Consider it loaded once settings come through (or after first batch)
     });
 

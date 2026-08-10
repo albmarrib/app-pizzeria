@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Menu, User } from 'lucide-react';
+import { ShoppingCart, Menu, User, Pizza } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
@@ -29,13 +29,17 @@ const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
                   className="h-10 w-10 object-contain rounded-md" 
                 />
               )}
-              <div className="text-2xl font-black tracking-tight text-red-600 hidden sm:block">
+              <div className="text-2xl font-black tracking-tight text-red-600 hidden sm:flex items-center h-8">
                 {globalSettings?.pizzeriaName ? (
-                  globalSettings.pizzeriaName.split(' ')[0]
-                ) : ""}
-                <span className="text-gray-900">
-                  {globalSettings?.pizzeriaName ? globalSettings.pizzeriaName.split(' ').slice(1).join(' ') : ""}
-                </span>
+                  <>
+                    {globalSettings.pizzeriaName.split(' ')[0]}
+                    <span className="text-gray-900 ml-1">
+                      {globalSettings.pizzeriaName.split(' ').slice(1).join(' ')}
+                    </span>
+                  </>
+                ) : (
+                  <Pizza className="w-7 h-7 text-red-600 animate-spin" style={{ animationDuration: '3s' }} />
+                )}
               </div>
             </div>
           );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../../../firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../../firebase/config';
 import { Plus, Edit2, Trash2, GripVertical } from 'lucide-react';
 
 const CategoriesManager = () => {
@@ -8,6 +9,35 @@ const CategoriesManager = () => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentCat, setCurrentCat] = useState({ id: null, name: '', imageUrl: '', order: 0 });
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const storageRef = ref(storage, `categories/${Date.now()}_${file.name}`);
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Tiempo de espera agotado. Verifica que Firebase Storage está habilitado y las reglas permiten escritura.")), 10000)
+      );
+
+      const snapshot = await Promise.race([
+        uploadBytes(storageRef, file),
+        timeoutPromise
+      ]);
+
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      setCurrentCat(prev => ({ ...prev, imageUrl: downloadURL }));
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      alert("Error al subir: " + (error.message || "Verifica Firebase Storage."));
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -78,13 +108,29 @@ const CategoriesManager = () => {
               <input type="number" value={currentCat.order} onChange={e => setCurrentCat({...currentCat, order: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold mb-1">URL Imagen (Para portada)</label>
-              <input type="text" value={currentCat.imageUrl} onChange={e => setCurrentCat({...currentCat, imageUrl: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300" placeholder="https://..." />
+              <label className="block text-sm font-bold mb-1">Imagen (Sube un archivo o introduce URL)</label>
+              <div className="flex gap-2 items-center">
+                <input 
+                  type="file" 
+                  accept="image/jpeg, image/png, image/webp" 
+                  onChange={handleImageUpload} 
+                  disabled={uploadingImage}
+                  className="w-full sm:w-1/2 p-2 border border-gray-300 rounded file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100" 
+                />
+                <input 
+                  type="text" 
+                  value={currentCat.imageUrl} 
+                  onChange={e => setCurrentCat({...currentCat, imageUrl: e.target.value})} 
+                  className="w-full sm:w-1/2 p-2 rounded-lg border border-gray-300" 
+                  placeholder="O introduce una URL: https://..." 
+                />
+              </div>
+              {uploadingImage && <p className="text-sm text-red-600 mt-1">Subiendo imagen...</p>}
             </div>
           </div>
           <div className="flex gap-2 justify-end">
             <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-200 rounded-lg">Cancelar</button>
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700">Guardar</button>
+            <button type="submit" disabled={uploadingImage} className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 disabled:opacity-50">Guardar</button>
           </div>
         </form>
       ) : null}

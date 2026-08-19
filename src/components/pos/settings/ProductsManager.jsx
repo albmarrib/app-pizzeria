@@ -177,7 +177,7 @@ const ProductsManager = () => {
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex flex-col gap-1 ml-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button onClick={(e)=>{e.stopPropagation(); handleDelete(p.id);}} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
                       </div>
                     </div>
@@ -186,6 +186,54 @@ const ProductsManager = () => {
               </div>
             )
           })}
+          
+          {/* Uncategorized products section */}
+          {(() => {
+            const uncategorizedProds = products.filter(p => !categories.includes(p.category));
+            if (uncategorizedProds.length === 0) return null;
+            return (
+              <div key="uncategorized">
+                <h3 className="font-bold text-red-500 uppercase tracking-widest text-xs mb-3">Sin Categoría / Categoría Eliminada</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {uncategorizedProds.map(p => (
+                    <div key={p.id} onClick={()=>{
+                      setCurrentProd(p); 
+                      setIsEditing(true);
+                      setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+                    }} className={`flex p-3 border rounded-xl hover:bg-gray-50 group transition-colors cursor-pointer ${p.outOfStock ? 'bg-red-50/50 border-red-100 opacity-70' : 'bg-gray-50/50 border-gray-100'}`}>
+                      <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden shrink-0 mr-3 relative">
+                        {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover"/>}
+                        {p.outOfStock && <div className="absolute inset-0 bg-red-600/50 flex items-center justify-center text-[8px] font-black text-white px-1 text-center">AGOTADO</div>}
+                      </div>
+                      <div className="flex-1 flex flex-col justify-center">
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-bold text-gray-900 leading-none">{p.name} {p.outOfStock && <span className="text-red-600 text-xs ml-1">(Agotado)</span>}</h4>
+                          <span className="font-bold text-gray-900">{p.price.toFixed(2)}€</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-1">{p.baseIngredients || p.description}</p>
+                        <p className="text-[10px] text-gray-400">IVA {p.taxRate || 10}%</p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {p.sectionId && (
+                            <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                              {sections.find(s => s.id === p.sectionId)?.name || 'Sección desconocida'}
+                            </span>
+                          )}
+                          {p.needsBox && (
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                              📦 Etiqueta
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 ml-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <button onClick={(e)=>{e.stopPropagation(); handleDelete(p.id);}} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 

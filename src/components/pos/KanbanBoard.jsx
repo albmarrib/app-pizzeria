@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, updateDoc, doc, deleteDoc, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, Eye, User, ShoppingBag, Truck, Bike, X, Ban, MessageCircle, Printer } from 'lucide-react';
+import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, Eye, User, ShoppingBag, Truck, Bike, X, Ban, MessageCircle, Printer, Utensils } from 'lucide-react';
 import { DndContext, useDraggable, useDroppable, closestCenter, DragOverlay, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
-import { printTicket } from '../../utils/printer';
+import { printDeliveryLabel, printKitchenTicket } from '../../utils/printer';
+import { useRef } from 'react';
 
 const EXPEDITOR_COLUMNS = ['Nuevos Pedidos', 'IN_PROGRESS', 'READY_FOR_ASSEMBLY', 'OUT_FOR_DELIVERY'];
 
@@ -29,16 +30,22 @@ const getColumnColor = (column) => {
   }
 };
 
-const OrderTypeTag = ({ type }) => {
+const OrderTypeTag = ({ type, tableName }) => {
   if (type === 'delivery') {
     return (
-      <span className="flex items-center gap-1.5 bg-blue-600 text-white font-black px-3 py-1.5 rounded-lg text-sm shadow-sm">
+      <span className="flex items-center gap-1.5 bg-red-600 text-white font-black px-3 py-1.5 rounded-lg text-sm shadow-sm">
         <Bike className="w-4 h-4" /> A DOMICILIO
+      </span>
+    );
+  } else if (type === 'dine_in') {
+    return (
+      <span className="flex items-center gap-1.5 bg-indigo-700 text-white font-black px-3 py-1.5 rounded-lg text-sm shadow-sm">
+        <Utensils className="w-4 h-4" /> MESA: {tableName || '?'}
       </span>
     );
   }
   return (
-    <span className="flex items-center gap-1.5 bg-yellow-400 text-yellow-900 font-black px-3 py-1.5 rounded-lg text-sm shadow-sm">
+    <span className="flex items-center gap-1.5 bg-emerald-600 text-white font-black px-3 py-1.5 rounded-lg text-sm shadow-sm">
       <ShoppingBag className="w-4 h-4" /> RECOGER
     </span>
   );
@@ -84,7 +91,7 @@ const getWhatsAppLink = (order) => {
 };
 
 // Draggable Order Card Component
-const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onPrintTicket }) => {
+const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onPrintTicket, onServeItem }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: order.id,
     data: { order, currentColumn: column }
@@ -98,8 +105,13 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
 
   const getSectionName = (secId) => sections.find(s => s.id === secId)?.name || 'Sin Sección';
 
-  // Compute elapsed time
-  const elapsedMs = now.getTime() - order.createdAt.getTime();
+  // Compute elapsed time based on the LAST non-served item for dine-in
+  const unservedItems = order.items?.filter(i => i.status !== 'SERVED') || [];
+  const latestItemTime = order.orderType === 'dine_in' && unservedItems.length > 0
+    ? Math.max(...unservedItems.map(i => i.addedAt || order.createdAt.getTime()))
+    : order.createdAt.getTime();
+
+  const elapsedMs = now.getTime() - latestItemTime;
   const elapsedMinutes = Math.floor(elapsedMs / 60000);
   const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
   const isAlarmTriggered = elapsedMinutes >= alarmMinutes;
@@ -123,11 +135,18 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
       {/* Header */}
       <div className="flex justify-between items-start mb-2">
         <div className="flex gap-2">
-          <OrderTypeTag type={order.orderType} />
+          <OrderTypeTag type={order.orderType} tableName={order.tableName || order.tableId} />
           <button 
-            onClick={(e) => { e.stopPropagation(); onPrintTicket(order); }}
+            onClick={(e) => { e.stopPropagation(); onPrintTicket(order, 'kitchen'); }}
+            className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg shadow-sm border border-gray-200 transition-colors mr-1"
+            title="Imprimir ticket de cocina"
+          >
+            <ChefHat className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); onPrintTicket(order, 'delivery'); }}
             className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg shadow-sm border border-gray-200 transition-colors"
-            title="Imprimir etiquetas de cocina"
+            title="Imprimir etiquetas de reparto"
           >
             <Printer className="w-4 h-4" />
           </button>
@@ -164,6 +183,15 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
         {order.items?.map((item, idx) => {
           if (!isExpeditor && item.sectionId !== activeView) return null;
           const itemStatus = item.status || (isExpeditor ? 'PENDING' : activeSectionColumns[0]);
+          
+          if (!isExpeditor && itemStatus === 'SERVED') {
+            return (
+              <div key={idx} className="flex justify-between items-center text-xs font-bold text-gray-400 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {item.quantity}x {item.name}</span>
+                <span className="uppercase text-[9px] bg-gray-200 px-1 py-0.5 rounded">En mesa</span>
+              </div>
+            );
+          }
 
           return (
             <div key={idx} className="flex flex-col bg-white p-3 rounded-xl border border-gray-200 shadow-sm cursor-default" onPointerDown={e => e.stopPropagation()}>
@@ -174,9 +202,24 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
                 </div>
                 {isExpeditor && (
                   <div className="flex flex-col gap-1 items-end">
-                    <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider ${isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {itemStatus}
-                    </span>
+                    {order.orderType === 'dine_in' && isItemReady(item) && itemStatus !== 'SERVED' ? (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onServeItem) onServeItem(order, idx);
+                        }}
+                        className="text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm"
+                      >
+                        Llevar a mesa
+                      </button>
+                    ) : (
+                      <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider ${
+                        itemStatus === 'SERVED' ? 'bg-indigo-100 text-indigo-700' :
+                        isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {itemStatus}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -190,26 +233,35 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
               {/* BIG Touch Controls for Section View */}
               {!isExpeditor && (
                 <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-                  {itemStatus !== activeSectionColumns[0] && (
-                    <button 
-                      onClick={() => moveItem(order, idx, itemStatus, -1)}
-                      className="w-1/3 py-3 text-sm font-black bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 active:scale-95 transition-all flex items-center justify-center border border-gray-200"
-                    >
-                      &lt; Atrás
-                    </button>
-                  )}
-                  {itemStatus !== activeSectionColumns[activeSectionColumns.length - 1] ? (
-                    <button 
-                      onClick={() => moveItem(order, idx, itemStatus, 1)}
-                      className="flex-1 py-3 text-base font-black bg-green-500 text-white shadow-lg shadow-green-500/30 rounded-xl hover:bg-green-600 active:scale-95 transition-all flex items-center justify-center border border-green-600"
-                    >
-                      Avanzar &gt;
-                    </button>
-                  ) : (
-                    <div className="flex-1 py-3 text-sm font-black bg-green-50 text-green-700 rounded-xl border border-green-200 flex items-center justify-center cursor-default">
+                  {itemStatus === 'SERVED' ? (
+                    <div className="flex-1 py-3 text-sm font-black bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-200 flex items-center justify-center cursor-default">
                       <CheckCircle2 className="w-5 h-5 mr-2" />
-                      Esperando
+                      Ya Servido
                     </div>
+                  ) : (
+                    <>
+                      {itemStatus !== activeSectionColumns[0] && (
+                        <button 
+                          onClick={() => moveItem(order, idx, itemStatus, -1)}
+                          className="w-1/3 py-3 text-sm font-black bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 active:scale-95 transition-all flex items-center justify-center border border-gray-200"
+                        >
+                          &lt; Atrás
+                        </button>
+                      )}
+                      {itemStatus !== activeSectionColumns[activeSectionColumns.length - 1] ? (
+                        <button 
+                          onClick={() => moveItem(order, idx, itemStatus, 1)}
+                          className="flex-1 py-3 text-base font-black bg-green-500 text-white shadow-lg shadow-green-500/30 rounded-xl hover:bg-green-600 active:scale-95 transition-all flex items-center justify-center border border-green-600"
+                        >
+                          Avanzar &gt;
+                        </button>
+                      ) : (
+                        <div className="flex-1 py-3 text-sm font-black bg-green-50 text-green-700 rounded-xl border border-green-200 flex items-center justify-center cursor-default">
+                          <CheckCircle2 className="w-5 h-5 mr-2" />
+                          Esperando
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -253,7 +305,7 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
         </a>
       )}
 
-      {isExpeditor && column === 'READY_FOR_ASSEMBLY' && (
+      {isExpeditor && column === 'READY_FOR_ASSEMBLY' && order.orderType !== 'dine_in' && (
         <button 
           onClick={async (e) => {
             e.stopPropagation();
@@ -287,7 +339,7 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
   );
 };
 
-const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery }) => {
+const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onServeItem }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
 
@@ -366,7 +418,12 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
         {/* List Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {filteredOrders.map(order => {
-            const elapsedMs = now.getTime() - order.createdAt.getTime();
+            const unservedItems = order.items?.filter(i => i.status !== 'SERVED') || [];
+            const latestItemTime = order.orderType === 'dine_in' && unservedItems.length > 0
+              ? Math.max(...unservedItems.map(i => i.addedAt || order.createdAt.getTime()))
+              : order.createdAt.getTime();
+
+            const elapsedMs = now.getTime() - latestItemTime;
             const elapsedMinutes = Math.floor(elapsedMs / 60000);
             const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
             const isAlarmTriggered = elapsedMinutes >= alarmMinutes;
@@ -377,7 +434,7 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
                 <div className="flex-shrink-0 w-full md:w-48 flex flex-col justify-between gap-2">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <OrderTypeTag type={order.orderType} />
+                      <OrderTypeTag type={order.orderType} tableName={order.tableName || order.tableId} />
                       <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
                         #{order.id.slice(-4)}
                       </span>
@@ -403,7 +460,7 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
                     </a>
                   )}
 
-                  {isExpeditor && column === 'READY_FOR_ASSEMBLY' && (
+                  {isExpeditor && column === 'READY_FOR_ASSEMBLY' && order.orderType !== 'dine_in' && (
                     <button 
                       onClick={async () => {
                         if (order.orderType === 'delivery') {
@@ -447,6 +504,15 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
                       if (!isExpeditor && item.sectionId !== activeView) return null;
                       const itemStatus = item.status || (isExpeditor ? 'PENDING' : activeSectionColumns[0]);
 
+                      if (itemStatus === 'SERVED') {
+                        return (
+                          <div key={idx} className="flex justify-between items-center text-xs font-bold text-gray-400 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                            <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {item.quantity}x {item.name}</span>
+                            <span className="uppercase text-[9px] bg-gray-200 px-1 py-0.5 rounded">En mesa</span>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div key={idx} className="bg-gray-50 p-2 rounded-lg border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div className="flex-1">
@@ -484,9 +550,24 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
                           )}
                           {isExpeditor && (
                              <div className="flex items-center gap-2">
-                               <span className={`text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-wider ${isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                                 {itemStatus}
-                               </span>
+                               {order.orderType === 'dine_in' && isItemReady(item) && itemStatus !== 'SERVED' ? (
+                                 <button 
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     if (onServeItem) onServeItem(order, idx);
+                                   }}
+                                   className="text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm"
+                                 >
+                                   Llevar a mesa
+                                 </button>
+                               ) : (
+                                 <span className={`text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-wider ${
+                                   itemStatus === 'SERVED' ? 'bg-indigo-100 text-indigo-700' :
+                                   isItemReady(item) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
+                                 }`}>
+                                   {itemStatus}
+                                 </span>
+                               )}
                              </div>
                           )}
                         </div>
@@ -530,6 +611,11 @@ const KanbanBoard = () => {
   
   const [globalSettings, setGlobalSettings] = useState(null);
   const [autoPrintTickets, setAutoPrintTickets] = useState(false);
+  
+  // Refs for callbacks
+  const globalSettingsRef = useRef(null);
+  const autoPrintTicketsRef = useRef(false);
+  const printingQueueRef = useRef(new Set());
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -562,13 +648,19 @@ const KanbanBoard = () => {
         }
         if (data.autoPrintTickets !== undefined) {
           setAutoPrintTickets(data.autoPrintTickets);
+          autoPrintTicketsRef.current = data.autoPrintTickets;
         }
+        globalSettingsRef.current = data;
       }
     };
     fetchSectionsAndSettings();
 
+    let isInitialLoad = true;
     const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      
+      // La lógica de impresión se maneja en un useEffect independiente
+
       const ordersData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -576,6 +668,7 @@ const KanbanBoard = () => {
       }));
       setOrders(ordersData);
       setLoading(false);
+      isInitialLoad = false;
     });
 
     const timer = setInterval(() => setNow(new Date()), 10000); // update every 10s
@@ -585,6 +678,42 @@ const KanbanBoard = () => {
       clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!autoPrintTickets || !globalSettings) return;
+
+    orders.forEach(async (orderData) => {
+      if (orderData.status !== 'COMPLETED' && orderData.status !== 'SERVED') {
+        const unprintedItems = orderData.items?.filter(i => i.printed === false) || [];
+        
+        if (unprintedItems.length > 0) {
+          const printBatchId = `${orderData.id}_${unprintedItems.length}`;
+          if (printingQueueRef.current.has(printBatchId)) return;
+          
+          printingQueueRef.current.add(printBatchId);
+
+          // Imprimir SOLO los ítems no impresos
+          printKitchenTicket(orderData, globalSettings, unprintedItems);
+          
+          // Marcar estos ítems como impresos obteniendo la versión más reciente para evitar race-conditions
+          try {
+            const freshSnap = await getDoc(doc(db, 'orders', orderData.id));
+            if (freshSnap.exists()) {
+              const freshData = freshSnap.data();
+              const updatedItems = freshData.items.map(i => {
+                if (i.printed === false) return { ...i, printed: true };
+                return i;
+              });
+              await updateDoc(doc(db, 'orders', orderData.id), { items: updatedItems });
+            }
+          } catch(e) {
+            console.error("Error marcando ítems como impresos", e);
+            printingQueueRef.current.delete(printBatchId); // Permitir reintento si falla
+          }
+        }
+      }
+    });
+  }, [orders, autoPrintTickets, globalSettings]);
 
   const isItemReady = (item) => {
     const sec = sections.find(s => s.id === item.sectionId);
@@ -597,16 +726,44 @@ const KanbanBoard = () => {
 
   const deriveOrderStatus = (items) => {
     if (!items || items.length === 0) return 'Nuevos Pedidos';
-    const allReady = items.every(isItemReady);
-    const allPending = items.every(i => {
+    
+    // Si todos los ítems están servidos, el pedido está servido
+    if (items.every(i => i.status === 'SERVED')) return 'SERVED';
+
+    const allReadyOrServed = items.every(i => isItemReady(i) || i.status === 'SERVED');
+    const allPendingOrServed = items.every(i => {
+      if (i.status === 'SERVED') return true;
       const sec = sections.find(s => s.id === i.sectionId);
       const firstCol = sec?.columns?.[0] || 'PENDING';
       return !i.status || i.status === firstCol;
     });
     
-    if (allReady) return 'READY_FOR_ASSEMBLY';
-    if (allPending) return 'Nuevos Pedidos';
+    if (allReadyOrServed) return 'READY_FOR_ASSEMBLY';
+    if (allPendingOrServed && items.some(i => i.status !== 'SERVED')) return 'Nuevos Pedidos';
     return 'IN_PROGRESS';
+  };
+
+  const handleServeItem = async (order, itemIndex) => {
+    const newItems = order.items.map((item, idx) => {
+      if (idx === itemIndex) {
+        return { ...item, status: 'SERVED' };
+      }
+      return { ...item };
+    });
+    
+    const newOrderStatus = deriveOrderStatus(newItems);
+    
+    // Optimistic update
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, items: newItems, status: newOrderStatus } : o));
+    
+    try {
+      await updateDoc(doc(db, 'orders', order.id), { 
+        items: newItems,
+        status: newOrderStatus
+      });
+    } catch (error) {
+      console.error("Error updating item to SERVED: ", error);
+    }
   };
 
   const moveItem = async (order, itemIndex, currentStatus, direction) => {
@@ -640,7 +797,7 @@ const KanbanBoard = () => {
         
         // Auto-print check
         if (autoPrintTickets && newStatus === activeColumns[activeColumns.length - 1]) {
-          printTicket(order, globalSettings, itemIndex, sections);
+          printDeliveryLabel(order, globalSettings, itemIndex, sections);
         }
       } catch (error) {
         console.error("Error updating item status: ", error);
@@ -738,7 +895,8 @@ const KanbanBoard = () => {
       }
 
       const newItems = order.items.map(item => {
-        if (item.sectionId === activeView) {
+        // No alterar los ítems que ya han sido servidos
+        if (item.sectionId === activeView && item.status !== 'SERVED') {
           return { ...item, status: targetColumn };
         }
         return { ...item };
@@ -760,7 +918,7 @@ const KanbanBoard = () => {
           // Find which items were moved to trigger individual prints
           order.items.forEach((item, idx) => {
             if (item.sectionId === activeView && item.status !== targetColumn) {
-               printTicket(order, globalSettings, idx, sections);
+               printDeliveryLabel(order, globalSettings, idx, sections);
             }
           });
         }
@@ -857,7 +1015,14 @@ const KanbanBoard = () => {
                     now={now}
                     alarmMinutes={alarmMinutes}
                     onMoveToDelivery={handleMoveToDelivery}
-                    onPrintTicket={(o) => printTicket(o, globalSettings, null, sections)}
+                    onPrintTicket={(o, type) => {
+                      if (type === 'kitchen') {
+                        printKitchenTicket(o, globalSettings);
+                      } else {
+                        printDeliveryLabel(o, globalSettings, null, sections);
+                      }
+                    }}
+                    onServeItem={handleServeItem}
                   />
                 ))}
               </KanbanColumn>
@@ -913,6 +1078,7 @@ const KanbanBoard = () => {
           now={now}
           alarmMinutes={alarmMinutes}
           onMoveToDelivery={handleMoveToDelivery}
+          onServeItem={handleServeItem}
         />
       )}
 

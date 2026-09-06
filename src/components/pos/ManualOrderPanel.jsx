@@ -5,7 +5,7 @@ import FullMenu from '../customer/FullMenu';
 import CartDrawer from '../customer/CartDrawer';
 import { ShoppingCart } from 'lucide-react';
 
-const ManualOrderPanel = () => {
+const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted }) => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [globalSettings, setGlobalSettings] = useState({});
@@ -13,7 +13,21 @@ const ManualOrderPanel = () => {
   
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [orderType, setOrderType] = useState('mesa'); // Default for POS
+  
+  // Set default orderType based on props
+  const [orderType, setOrderType] = useState(preselectedTable || existingOrder ? 'dine_in' : 'dine_in');
+
+  // Load existing order items into cart if editing
+  useEffect(() => {
+    if (existingOrder && existingOrder.items) {
+      setCart(existingOrder.items.map((item, index) => ({
+        ...item,
+        id: item.productId || item.id,
+        cartItemId: item.cartItemId || `existing_${index}_${Date.now()}`
+      })));
+      setOrderType(existingOrder.orderType || 'dine_in');
+    }
+  }, [existingOrder]);
 
   useEffect(() => {
     setLoading(true);
@@ -108,6 +122,9 @@ const ManualOrderPanel = () => {
         orderType={orderType}
         setOrderType={setOrderType}
         isPosMode={true} // Indicamos que estamos en modo manual del restaurante
+        preselectedTable={preselectedTable}
+        existingOrder={existingOrder}
+        onOrderCompleted={onOrderCompleted}
       />
     </div>
   );

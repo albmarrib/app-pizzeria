@@ -4,9 +4,10 @@ import { db } from '../firebase/config';
 import KanbanBoard from '../components/pos/KanbanBoard';
 import SettingsPanel from '../components/pos/SettingsPanel';
 import ManualOrderPanel from '../components/pos/ManualOrderPanel';
+import TableMapPanel from '../components/pos/TableMapPanel';
 import StatsPanel from '../components/pos/StatsPanel';
 import InvoiceManagerPanel from '../components/pos/InvoiceManagerPanel';
-import { LayoutDashboard, Settings, LogOut, Bell, ShoppingBag, BarChart3, FileText } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Bell, ShoppingBag, BarChart3, FileText, MapPin } from 'lucide-react';
 
 const POSDashboard = () => {
   const [activeTab, setActiveTab] = useState('pedidos');
@@ -67,6 +68,14 @@ const POSDashboard = () => {
           </button>
           
           <button 
+            onClick={() => setActiveTab('mesas')}
+            className={`flex flex-col lg:flex-row items-center gap-1 lg:gap-3 p-2 lg:p-3 rounded-xl transition-colors ${activeTab === 'mesas' ? 'text-red-600 lg:bg-red-50 font-semibold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
+          >
+            <MapPin className="w-6 h-6 lg:w-6 lg:h-6" />
+            <span className="text-[10px] lg:text-base lg:block">Salón</span>
+          </button>
+          
+          <button 
             onClick={() => setActiveTab('configuracion')}
             className={`flex flex-col lg:flex-row items-center gap-1 lg:gap-3 p-2 lg:p-3 rounded-xl transition-colors ${activeTab === 'configuracion' ? 'text-red-600 lg:bg-red-50 font-semibold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
           >
@@ -107,6 +116,7 @@ const POSDashboard = () => {
           <h1 className="text-lg lg:text-xl font-bold text-gray-900 truncate">
             {activeTab === 'nuevo_pedido' && 'Nuevo Pedido'}
             {activeTab === 'pedidos' && 'Pedidos Activos'}
+            {activeTab === 'mesas' && 'Salón / Mesas'}
             {activeTab === 'configuracion' && 'Configuración'}
             {activeTab === 'estadisticas' && 'Estadísticas'}
             {activeTab === 'facturas' && 'Facturas'}
@@ -131,6 +141,7 @@ const POSDashboard = () => {
         {/* Main Area */}
         <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 lg:p-6 bg-gray-100">
           {activeTab === 'nuevo_pedido' && <ManualOrderPanel />}
+          {activeTab === 'mesas' && <TableMapPanel />}
           {activeTab === 'pedidos' && <KanbanBoard />}
           {activeTab === 'configuracion' && <SettingsPanel />}
           {activeTab === 'estadisticas' && <StatsPanel />}

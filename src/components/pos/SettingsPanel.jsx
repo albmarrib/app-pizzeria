@@ -4,7 +4,8 @@ import CategoriesManager from './settings/CategoriesManager';
 import SectionsManager from './settings/SectionsManager';
 import ProductsManager from './settings/ProductsManager';
 import IngredientsManager from './settings/IngredientsManager';
-import { Store, ListTree, Package, Leaf, LayoutGrid } from 'lucide-react';
+import ZonesManager from './settings/ZonesManager';
+import { Store, ListTree, Package, Leaf, LayoutGrid, MapPin } from 'lucide-react';
 
 const SettingsPanel = () => {
   const [activeSubTab, setActiveSubTab] = useState('general');
@@ -43,6 +44,12 @@ const SettingsPanel = () => {
         >
           <Leaf className="w-4 h-4" /> Extras y Alérgenos
         </button>
+        <button 
+          onClick={() => setActiveSubTab('mesas')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${activeSubTab === 'mesas' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+        >
+          <MapPin className="w-4 h-4" /> Zonas y Mesas
+        </button>
       </div>
 
       {/* Settings Content Area */}
@@ -53,6 +60,7 @@ const SettingsPanel = () => {
           {activeSubTab === 'sections' && <SectionsManager />}
           {activeSubTab === 'products' && <ProductsManager />}
           {activeSubTab === 'extras' && <IngredientsManager />}
+          {activeSubTab === 'mesas' && <ZonesManager />}
         </div>
       </div>
     </div>

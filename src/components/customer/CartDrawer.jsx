@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Plus, Minus, X, ArrowRight, Store, Trash2, CreditCard, Apple, Phone, User, MapPin, Gift } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, ArrowRight, Store, Trash2, CreditCard, Apple, Phone, User, MapPin, Gift, Utensils } from 'lucide-react';
 import StripeCheckout from './StripeCheckout';
-import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
 // Utilidad para generar códigos cortos únicos
@@ -15,10 +15,17 @@ const generateOrderCode = () => {
   return result;
 };
 
-const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAdd, orderType, setOrderType, isPosMode = false }) => {
+const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAdd, orderType, setOrderType, isPosMode = false, preselectedTable, existingOrder, onOrderCompleted }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1); // 1: Carrito, 2: Datos
   
+  // Set default orderType based on props
+  useEffect(() => {
+    if (preselectedTable || existingOrder) {
+      setOrderType('dine_in');
+    }
+  }, [preselectedTable, existingOrder, setOrderType]);
+
   // Datos del formulario
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
@@ -42,6 +49,10 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
   const [claimingReward, setClaimingReward] = useState(false);
   const [rewardProducts, setRewardProducts] = useState([]);
   const [loadingRewardProducts, setLoadingRewardProducts] = useState(false);
+  const [tables, setTables] = useState([]);
+  const [zones, setZones] = useState([]);
+  const [activeOrders, setActiveOrders] = useState([]);
+  const [selectedTableId, setSelectedTableId] = useState('');
 
   // Sincronizar fee desde settings globales o locales si es necesario
   useEffect(() => {
@@ -84,6 +95,41 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
     const timer = setTimeout(checkLoyalty, 500);
     return () => clearTimeout(timer);
   }, [customerInfo.phone, globalSettings.loyaltyEnabled]);
+
+  // Cargar mesas para el selector
+  useEffect(() => {
+    if (isPosMode && isOpen) {
+      const unsubZones = onSnapshot(collection(db, 'zones'), (snap) => {
+        const sortedZones = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.order || 0) - (b.order || 0));
+        setZones(sortedZones);
+      });
+
+      const unsubTables = onSnapshot(collection(db, 'tables'), (snap) => {
+        const sortedTables = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.label || '').localeCompare(b.label || ''));
+        setTables(sortedTables);
+      });
+
+      const qOrders = query(collection(db, 'orders'), where('orderType', '==', 'dine_in'));
+      const unsubOrders = onSnapshot(qOrders, (snap) => {
+        const orders = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(o => o.status !== 'COMPLETED' && o.status !== 'CANCELED' && o.status !== 'PAID');
+        setActiveOrders(orders);
+      });
+
+      if (preselectedTable) {
+        setSelectedTableId(preselectedTable.id);
+      } else if (existingOrder) {
+        setSelectedTableId(existingOrder.tableId || '');
+      }
+
+      return () => {
+        unsubZones();
+        unsubTables();
+        unsubOrders();
+      };
+    }
+  }, [isPosMode, isOpen, preselectedTable, existingOrder]);
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const deliveryFee = globalSettings?.deliveryFee || 2.50;
@@ -130,6 +176,13 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
   const validateOrder = async () => {
     if (cart.length === 0) return false;
     
+    if (orderType === 'dine_in' && isPosMode && !preselectedTable && !existingOrder) {
+      if (!selectedTableId) {
+        alert("Por favor, selecciona una Mesa para este pedido. Si es para recoger en barra, selecciona 'Recoger local' arriba.");
+        return false;
+      }
+    }
+
     if (orderType === 'delivery') {
       if (!customerInfo.address.trim() || !customerInfo.phone.trim() || !customerInfo.postalCode.trim() || (!isPosMode && (!customerInfo.name.trim() || !customerInfo.email.trim()))) {
         alert(isPosMode ? "Por favor, rellena teléfono, dirección y código postal." : "Por favor, rellena nombre, email, teléfono, dirección y código postal.");
@@ -166,14 +219,16 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
     
     // Fidelidad: Añadir producto falso si se canjea
     const finalItems = cart.map(item => ({
-      productId: item.id,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
+      productId: item.id || item.productId || 'unknown',
+      name: item.name || 'Producto sin nombre',
+      quantity: item.quantity || 1,
+      price: item.price || 0,
       taxRate: item.taxRate || 10,
       modifiers: item.modifiers || '',
       sectionId: item.sectionId || '',
-      status: 'PENDING'
+      status: item.status || 'PENDING',
+      addedAt: item.addedAt || Date.now(),
+      printed: item.printed || false
     }));
 
     // Datos de Fidelidad para el ticket (tracking)
@@ -211,7 +266,9 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
       paymentMethod: paymentMethodMock,
       status: initialStatus || 'Nuevos Pedidos', 
       source: isPosMode ? 'Local/POS' : 'Customer Web',
-      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      tableId: (orderType === 'dine_in' ? selectedTableId : null) || null,
+      tableName: (orderType === 'dine_in' ? (tables.find(t => t.id === selectedTableId)?.label) : null) || null,
       loyaltyStatus: globalSettings.loyaltyEnabled ? {
         orderCount: currentOrderCount,
         hasReward: currentHasReward,
@@ -220,7 +277,17 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
       } : null
     };
     
-    const docRef = await addDoc(collection(db, 'orders'), orderData);
+    let docRef;
+    if (existingOrder) {
+      // Si el pedido se cobra, marcamos como completado
+      if (isPaid) orderData.status = 'COMPLETED';
+      docRef = doc(db, 'orders', existingOrder.id);
+      await updateDoc(docRef, orderData);
+    } else {
+      orderData.createdAt = serverTimestamp();
+      if (isPaid) orderData.status = 'COMPLETED';
+      docRef = await addDoc(collection(db, 'orders'), orderData);
+    }
 
     // Save customer to CRM (Fidelidad)
     if (globalSettings.loyaltyEnabled && customerInfo.phone) {
@@ -304,7 +371,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
       
     } catch (error) {
       console.error("Error creating order: ", error);
-      alert("Hubo un error al procesar tu pedido.");
+      alert("Hubo un error al procesar tu pedido: " + (error.message || "Desconocido"));
     } finally {
       setIsCheckingOut(false);
     }
@@ -315,6 +382,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
     setStep(1);
     setOrderCode('');
     onClose();
+    if (onOrderCompleted) onOrderCompleted();
   };
 
   return (
@@ -393,12 +461,11 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                   Recoger local
                 </button>
                 {isPosMode && (
-                  <button 
-                    onClick={() => setOrderType('mesa')}
-                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${orderType === 'mesa' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-                  >
-                    Mesa / Tomar aquí
-                  </button>
+                  <button onClick={() => setOrderType('dine_in')} className={`flex-1 py-3 px-2 rounded-xl text-sm font-bold flex flex-col items-center gap-1 border-2 transition-all ${orderType === 'dine_in' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+            <Utensils className="w-5 h-5" />
+            <span className="hidden sm:block">Mesa / Tomar aquí</span>
+            <span className="sm:hidden">Mesa</span>
+          </button>
                 )}
               </div>
 
@@ -608,6 +675,54 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                   </>
                 )}
 
+                {/* Campos específicos Mesa */}
+                {orderType === 'dine_in' && isPosMode && (
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold text-gray-700">Seleccionar Mesa (Obligatorio)</label>
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 max-h-64 overflow-y-auto space-y-4">
+                      {zones.length > 0 ? zones.map(zone => {
+                        const zoneTables = tables.filter(t => t.zoneId === zone.id);
+                        if (zoneTables.length === 0) return null;
+                        
+                        return (
+                          <div key={zone.id}>
+                            <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-2">{zone.name}</h5>
+                            <div className="grid grid-cols-4 gap-2">
+                              {zoneTables.map(t => {
+                                const isOccupied = activeOrders.some(o => o.tableId === t.id);
+                                const isSelected = selectedTableId === t.id;
+                                const isDisabled = (isOccupied && !isSelected) || !!preselectedTable || !!existingOrder;
+                                
+                                return (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    disabled={isDisabled}
+                                    onClick={() => setSelectedTableId(t.id)}
+                                    className={`
+                                      py-2 px-1 rounded-lg text-xs font-bold transition-all border shadow-sm
+                                      ${isSelected 
+                                        ? 'bg-red-600 text-white border-red-700 transform scale-105' 
+                                        : isOccupied 
+                                          ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed opacity-70' 
+                                          : 'bg-white text-gray-700 border-gray-200 hover:border-red-300 hover:text-red-600'
+                                      }
+                                    `}
+                                  >
+                                    {t.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }) : (
+                        <div className="text-center text-sm text-gray-500 py-4">Cargando mesas...</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Notas generales */}
                 <div className="pt-2">
                   <textarea name="notes" value={customerInfo.notes} onChange={handleInputChange} placeholder={orderType === 'delivery' ? "Notas (timbre, puerta...)" : "Notas para cocina (opcional)"} className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none resize-none bg-gray-50 focus:bg-white" rows="2" />
@@ -671,9 +786,9 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
               
               {isPosMode ? (
                 <div className="space-y-3">
-                  {orderType === 'delivery' && (
+                  {(orderType === 'delivery' || orderType === 'dine_in' || orderType === 'pickup') && (
                     <button onClick={() => handleCheckout('pending')} disabled={isCheckingOut} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
-                      <span>Pendiente de Pago (Cobrar en entrega)</span>
+                      <span>{orderType === 'dine_in' ? (existingOrder ? 'Marchar Añadidos a Cocina' : 'Marchar Pedido a Cocina') : 'Pendiente de Pago (Cobrar después)'}</span>
                     </button>
                   )}
                   <button onClick={() => handleCheckout('cash')} disabled={isCheckingOut} className="w-full bg-black hover:bg-gray-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">

@@ -13,7 +13,7 @@ const getCategoryIcon = (catName) => {
   return <Utensils className="w-5 h-5" />; // default
 };
 
-const FullMenu = ({ categories, products, onBack, onAdd, isPosMode }) => {
+const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode }) => {
   const [activeCategory, setActiveCategory] = useState(categories[0]?.name || '');
 
   // Opcional: Implementar scroll spy para cambiar la categoría activa automáticamente
@@ -122,6 +122,7 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode }) => {
             <MenuGrid 
               products={products.filter(p => p.category === cat.name)} 
               onAdd={onAdd} 
+              isTableMode={isTableMode}
             />
           </section>
         ))}

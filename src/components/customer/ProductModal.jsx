@@ -12,7 +12,7 @@ const getDefaultIcon = (name) => {
   return <Info className="w-4 h-4" />;
 };
 
-const ProductModal = ({ product, onClose, onAdd }) => {
+const ProductModal = ({ product, onClose, onAdd, isTableMode }) => {
   const [addedExtras, setAddedExtras] = useState(new Set());
   const [quantity, setQuantity] = useState(1);
   const [totalPrice, setTotalPrice] = useState(product.price);
@@ -191,20 +191,39 @@ const ProductModal = ({ product, onClose, onAdd }) => {
             </div>
             
             <div className="flex flex-col w-full sm:flex-row gap-2 sm:gap-4 flex-1">
-              <button 
-                onClick={() => handleAddToCart(false)}
-                className="flex-1 bg-white hover:bg-gray-50 text-black border-2 border-black font-black text-sm py-3 sm:py-4 rounded-2xl transition-all flex items-center justify-center"
-              >
-                Añadir y seguir comprando
-              </button>
-              <button 
-                onClick={() => handleAddToCart(true)}
-                className="flex-1 bg-black hover:bg-gray-900 text-white font-black text-sm py-3 sm:py-4 rounded-2xl shadow-xl shadow-black/20 transition-all flex items-center justify-center gap-2"
-              >
-                <span>Añadir e ir a pagar</span>
-                <span className="w-1.5 h-1.5 bg-white/30 rounded-full hidden sm:block"></span>
-                <span className="hidden sm:inline">{totalPrice.toFixed(2)}€</span>
-              </button>
+              {isTableMode ? (
+                <>
+                  <button 
+                    onClick={() => handleAddToCart(false)}
+                    className="flex-1 bg-white hover:bg-gray-50 text-black border-2 border-black font-black text-sm py-3 sm:py-4 rounded-2xl transition-all flex items-center justify-center"
+                  >
+                    Añadir
+                  </button>
+                  <button 
+                    onClick={() => handleAddToCart(true)}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black text-sm py-3 sm:py-4 rounded-2xl shadow-xl shadow-red-600/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>Marchar a Cocina</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => handleAddToCart(false)}
+                    className="flex-1 bg-white hover:bg-gray-50 text-black border-2 border-black font-black text-sm py-3 sm:py-4 rounded-2xl transition-all flex items-center justify-center"
+                  >
+                    Añadir y seguir comprando
+                  </button>
+                  <button 
+                    onClick={() => handleAddToCart(true)}
+                    className="flex-1 bg-black hover:bg-gray-900 text-white font-black text-sm py-3 sm:py-4 rounded-2xl shadow-xl shadow-black/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>Añadir e ir a pagar</span>
+                    <span className="w-1.5 h-1.5 bg-white/30 rounded-full hidden sm:block"></span>
+                    <span className="hidden sm:inline">{totalPrice.toFixed(2)}€</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

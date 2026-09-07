@@ -98,6 +98,7 @@ const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted })
           products={products} 
           onAdd={addToCart}
           isPosMode={true}
+          isTableMode={!!preselectedTable || !!existingOrder}
         />
       </div>
 

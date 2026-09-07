@@ -402,12 +402,37 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
               </button>
             )}
             <h2 className="text-xl font-bold text-gray-900">
-              {orderSuccess ? 'Pedido Confirmado' : step === 1 ? 'Tu Pedido' : 'Datos y Pago'}
+              {orderSuccess ? 'Pedido Confirmado' : step === 1 ? ((isPosMode && (preselectedTable || existingOrder)) ? 'Mesa ' + (preselectedTable?.label || existingOrder?.tableName || '') : 'Tu Pedido') : 'Datos y Pago'}
             </h2>
           </div>
-          <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-full">
-            <X className="w-5 h-5" />
-          </button>
+          
+          {(isPosMode && (preselectedTable || existingOrder) && step === 1 && !orderSuccess) ? (
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => {
+                  if(window.confirm('¿Cancelar pedido y vaciar el carrito?')) {
+                    onEmptyCart();
+                    handleClose();
+                  }
+                }}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                title="Cancelar y vaciar"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <button 
+                onClick={() => handleCheckout('pending')}
+                disabled={isCheckingOut}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl shadow-md disabled:opacity-70 flex items-center gap-2"
+              >
+                CONFIRMAR
+              </button>
+            </div>
+          ) : (
+            <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-full">
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {cart.length === 0 ? (
@@ -446,28 +471,30 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
           <>
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Order Type Selection */}
-              <div className="bg-gray-50 p-1.5 rounded-xl flex gap-1 mb-6">
-                <button 
-                  onClick={() => setOrderType('delivery')}
-                  className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${orderType === 'delivery' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-                >
-                  A Domicilio
-                </button>
-                <button 
-                  onClick={() => setOrderType('pickup')}
-                  className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${orderType === 'pickup' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-                >
-                  <Store className="w-4 h-4" />
-                  Recoger local
-                </button>
-                {isPosMode && (
-                  <button onClick={() => setOrderType('dine_in')} className={`flex-1 py-3 px-2 rounded-xl text-sm font-bold flex flex-col items-center gap-1 border-2 transition-all ${orderType === 'dine_in' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-            <Utensils className="w-5 h-5" />
-            <span className="hidden sm:block">Mesa / Tomar aquí</span>
-            <span className="sm:hidden">Mesa</span>
-          </button>
-                )}
-              </div>
+              {!(isPosMode && (preselectedTable || existingOrder)) && (
+                <div className="bg-gray-50 p-1.5 rounded-xl flex gap-1 mb-6">
+                  <button 
+                    onClick={() => setOrderType('delivery')}
+                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all ${orderType === 'delivery' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                  >
+                    A Domicilio
+                  </button>
+                  <button 
+                    onClick={() => setOrderType('pickup')}
+                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${orderType === 'pickup' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                  >
+                    <Store className="w-4 h-4" />
+                    Recoger local
+                  </button>
+                  {isPosMode && (
+                    <button onClick={() => setOrderType('dine_in')} className={`flex-1 py-3 px-2 rounded-xl text-sm font-bold flex flex-col items-center gap-1 border-2 transition-all ${orderType === 'dine_in' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                      <Utensils className="w-5 h-5" />
+                      <span className="hidden sm:block">Mesa / Tomar aquí</span>
+                      <span className="sm:hidden">Mesa</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {cart.map((item) => (
                 <div key={item.cartItemId} className="flex gap-4 border-b border-gray-50 pb-4">
@@ -503,31 +530,33 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                 <span className="text-gray-500 font-bold">Subtotal</span>
                 <span className="text-2xl font-black text-gray-900">{subtotal.toFixed(2)}€</span>
               </div>
-              <div className="flex gap-3 mt-6">
-                <button 
-                  onClick={() => {
-                    onEmptyCart();
-                    handleClose();
-                  }}
-                  className="p-4 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-500 rounded-xl transition-colors"
-                  title="Vaciar carrito"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={handleClose}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-xl flex items-center justify-center transition-colors"
-                >
-                  Seguir comprando
-                </button>
-                <button 
-                  onClick={() => setStep(2)}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-red-600/30"
-                >
-                  <span>Pedir</span>
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </button>
-              </div>
+              {!(isPosMode && (preselectedTable || existingOrder)) && (
+                <div className="flex gap-3 mt-6">
+                  <button 
+                    onClick={() => {
+                      onEmptyCart();
+                      handleClose();
+                    }}
+                    className="p-4 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-500 rounded-xl transition-colors"
+                    title="Vaciar carrito"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <button 
+                    onClick={handleClose}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-xl flex items-center justify-center transition-colors"
+                  >
+                    Seguir comprando
+                  </button>
+                  <button 
+                    onClick={() => setStep(2)}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-red-600/30"
+                  >
+                    <span>Pedir</span>
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </button>
+                </div>
+              )}
             </div>
           </>
         ) : (

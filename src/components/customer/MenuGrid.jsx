@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ProductCard from './ProductCard';
 import ProductModal from './ProductModal';
 
-const MenuGrid = ({ products, onAdd, isTableMode }) => {
+const MenuGrid = ({ products, onAdd, isTableMode, isPosMode }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   if (products.length === 0) {
@@ -14,7 +14,16 @@ const MenuGrid = ({ products, onAdd, isTableMode }) => {
   }
 
   const handleProductClick = (product) => {
-    setSelectedProduct(product);
+    if (isPosMode) {
+      const productToAdd = {
+        ...product,
+        quantity: 1,
+        cartItemId: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      };
+      onAdd(productToAdd, false); // Add directly, do not open cart drawer (it will be split screen)
+    } else {
+      setSelectedProduct(product);
+    }
   };
 
   const handleCloseModal = () => {

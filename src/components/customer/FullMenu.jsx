@@ -65,7 +65,7 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode 
         // Calculate offset relative to the scrolling container
         const containerRect = container.getBoundingClientRect();
         const elRect = el.getBoundingClientRect();
-        const y = elRect.top - containerRect.top + container.scrollTop - 60; // 60px offset for the sticky header
+        const y = elRect.top - containerRect.top + container.scrollTop - 24; // 24px offset for margin
         container.scrollTo({ top: y, behavior: 'smooth' });
       } else {
         const y = el.getBoundingClientRect().top + window.scrollY - 140;
@@ -74,6 +74,51 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode 
       setActiveCategory(catName);
     }
   };
+
+  if (isPosMode) {
+    return (
+      <div className="flex h-full bg-gray-50">
+        {/* Left Column: Vertical Categories */}
+        <div className="w-[180px] xl:w-[220px] flex-shrink-0 bg-white border-r border-gray-200 overflow-y-auto py-6">
+          <div className="flex flex-col gap-2 px-4">
+            {categories.map((cat) => (
+              <button
+                key={cat.name}
+                onClick={() => scrollToCategory(cat.name)}
+                className={`flex items-center gap-3 px-4 py-4 rounded-xl font-bold text-sm transition-all duration-300
+                  ${activeCategory === cat.name 
+                    ? 'bg-red-600 text-white shadow-md shadow-red-600/30' 
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                  }`}
+              >
+                {getCategoryIcon(cat.name)}
+                <span className="text-left leading-tight">{cat.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Column: Products Grid */}
+        <div className="flex-1 h-full overflow-y-auto pb-24 px-6 pt-6 space-y-12" id="pos-scroll-container">
+          {categories.map((cat) => (
+            <section key={cat.name} id={`category-${cat.name}`} className="scroll-mt-6">
+              <div className="flex items-center gap-4 mb-6">
+                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">{cat.name}</h2>
+                <div className="flex-1 h-1 bg-gray-200 rounded-full"></div>
+              </div>
+              
+              <MenuGrid 
+                products={products.filter(p => p.category === cat.name)} 
+                onAdd={onAdd} 
+                isTableMode={isTableMode}
+                isPosMode={isPosMode}
+              />
+            </section>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-50 min-h-screen pb-24">
@@ -123,6 +168,7 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode 
               products={products.filter(p => p.category === cat.name)} 
               onAdd={onAdd} 
               isTableMode={isTableMode}
+              isPosMode={isPosMode}
             />
           </section>
         ))}

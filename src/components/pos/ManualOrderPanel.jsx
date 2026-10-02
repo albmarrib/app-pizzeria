@@ -12,7 +12,7 @@ const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted })
   const [loading, setLoading] = useState(true);
   
   const [cart, setCart] = useState([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  // No need for isCartOpen state as cart will be permanently visible inline
   
   // Set default orderType based on props
   const [orderType, setOrderType] = useState(preselectedTable || existingOrder ? 'dine_in' : 'dine_in');
@@ -67,9 +67,7 @@ const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted })
       }
       return [...prev, productToAdd];
     });
-    if (openCart) {
-      setIsCartOpen(true);
-    }
+    // Removed openCart logic as cart is always visible
   };
 
   const updateQuantity = (cartItemId, delta) => {
@@ -91,8 +89,9 @@ const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted })
   }
 
   return (
-    <div className="relative h-full overflow-hidden bg-gray-50 rounded-2xl border border-gray-200">
-      <div className="h-full overflow-y-auto relative" id="pos-scroll-container">
+    <div className="flex h-full overflow-hidden bg-gray-50 rounded-2xl border border-gray-200">
+      {/* Columna Central: Menú con Categorías */}
+      <div className="flex-1 h-full relative">
         <FullMenu 
           categories={categories} 
           products={products} 
@@ -102,31 +101,24 @@ const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted })
         />
       </div>
 
-      {/* Botón flotante para abrir el carrito si está cerrado */}
-      {!isCartOpen && cartCount > 0 && (
-        <button 
-          onClick={() => setIsCartOpen(true)}
-          className="absolute bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white rounded-full p-4 shadow-2xl transition-transform hover:scale-105 flex items-center gap-3 z-40"
-        >
-          <ShoppingCart className="w-6 h-6" />
-          <span className="font-bold text-lg">{cartCount} items</span>
-        </button>
-      )}
-
-      <CartDrawer 
-        isOpen={isCartOpen} 
-        onClose={() => setIsCartOpen(false)} 
-        cart={cart}
-        onUpdateQuantity={updateQuantity}
-        onEmptyCart={emptyCart}
-        globalSettings={globalSettings}
-        orderType={orderType}
-        setOrderType={setOrderType}
-        isPosMode={true} // Indicamos que estamos en modo manual del restaurante
-        preselectedTable={preselectedTable}
-        existingOrder={existingOrder}
-        onOrderCompleted={onOrderCompleted}
-      />
+      {/* Columna Derecha: Ticket / Carrito */}
+      <div className="w-[450px] flex-shrink-0 h-full border-l border-gray-200 bg-white">
+        <CartDrawer 
+          isOpen={true} 
+          isInline={true}
+          onClose={() => {}} // No-op since it's always open
+          cart={cart}
+          onUpdateQuantity={updateQuantity}
+          onEmptyCart={emptyCart}
+          globalSettings={globalSettings}
+          orderType={orderType}
+          setOrderType={setOrderType}
+          isPosMode={true}
+          preselectedTable={preselectedTable}
+          existingOrder={existingOrder}
+          onOrderCompleted={onOrderCompleted}
+        />
+      </div>
     </div>
   );
 };

@@ -15,7 +15,7 @@ const generateOrderCode = () => {
   return result;
 };
 
-const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAdd, orderType, setOrderType, isPosMode = false, preselectedTable, existingOrder, onOrderCompleted }) => {
+const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAdd, orderType, setOrderType, isPosMode = false, isInline = false, preselectedTable, existingOrder, onOrderCompleted }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1); // 1: Carrito, 2: Datos
   
@@ -285,7 +285,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
       await updateDoc(docRef, orderData);
     } else {
       orderData.createdAt = serverTimestamp();
-      if (isPaid) orderData.status = 'COMPLETED';
+      // NO marcamos un pedido nuevo como COMPLETED aunque esté pagado, porque debe pasar por cocina
       docRef = await addDoc(collection(db, 'orders'), orderData);
     }
 
@@ -387,11 +387,11 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
 
   return (
     <>
-      {isOpen && (
+      {isOpen && !isInline && (
         <div className="fixed inset-0 bg-black/50 z-40 transition-opacity backdrop-blur-sm" onClick={handleClose} />
       )}
       
-      <div className={`fixed top-0 right-0 w-full max-w-md h-full bg-white z-50 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className={isInline ? "flex flex-col h-full w-full bg-white z-20 border-r border-gray-200" : `fixed top-0 right-0 w-full max-w-md h-full bg-white z-50 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         
         {/* Cabecera */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
@@ -429,9 +429,11 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
               </button>
             </div>
           ) : (
-            <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-full">
-              <X className="w-5 h-5" />
-            </button>
+            !isInline && (
+              <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-900 bg-gray-50 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            )
           )}
         </div>
 
@@ -542,12 +544,14 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
-                  <button 
-                    onClick={handleClose}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-xl flex items-center justify-center transition-colors"
-                  >
-                    Seguir comprando
-                  </button>
+                  {!isInline && (
+                    <button 
+                      onClick={handleClose}
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-4 rounded-xl flex items-center justify-center transition-colors"
+                    >
+                      Seguir comprando
+                    </button>
+                  )}
                   <button 
                     onClick={() => setStep(2)}
                     className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center transition-colors shadow-lg shadow-red-600/30"
@@ -581,7 +585,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <Phone className="h-5 w-5" />
                   </div>
-                  <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder={isPosMode ? "Teléfono (Opcional)" : "Teléfono de contacto"} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
+                  <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder={orderType === 'delivery' ? "Teléfono" : (isPosMode ? "Teléfono (Opcional)" : "Teléfono de contacto")} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
                 </div>
                 
                 {/* Fidelidad: Aviso de Premio */}

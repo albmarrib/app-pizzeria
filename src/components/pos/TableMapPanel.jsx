@@ -283,7 +283,7 @@ const TableMapPanel = () => {
       {tableToManage && (
         <TableCheckoutModal 
           table={tableToManage.table}
-          order={tableToManage.order}
+          order={activeOrders.find(o => o.id === tableToManage.order.id) || tableToManage.order}
           onClose={() => setTableToManage(null)}
           onOpenManualOrder={() => {
             setEditingOrder(tableToManage.order);

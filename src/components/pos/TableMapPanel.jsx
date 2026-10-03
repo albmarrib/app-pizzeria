@@ -45,7 +45,7 @@ const getStatusColor = (status) => {
   return { bg: 'bg-red-500', border: 'border-red-700', shadow: 'shadow-red-500/50' };
 };
 
-const TableMapPanel = () => {
+const TableMapPanel = ({ globalSettings }) => {
   const [zones, setZones] = useState([]);
   const [tables, setTables] = useState([]);
   const [activeOrders, setActiveOrders] = useState([]);
@@ -284,6 +284,7 @@ const TableMapPanel = () => {
         <TableCheckoutModal 
           table={tableToManage.table}
           order={activeOrders.find(o => o.id === tableToManage.order.id) || tableToManage.order}
+          globalSettings={globalSettings}
           onClose={() => setTableToManage(null)}
           onOpenManualOrder={() => {
             setEditingOrder(tableToManage.order);

@@ -228,7 +228,8 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
       sectionId: item.sectionId || '',
       status: item.status || 'PENDING',
       addedAt: item.addedAt || Date.now(),
-      printed: item.printed || false
+      printed: item.printed || false,
+      needsBox: item.needsBox || false
     }));
 
     // Datos de Fidelidad para el ticket (tracking)

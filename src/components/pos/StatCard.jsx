@@ -1,8 +1,11 @@
 import React from 'react';
 
-const StatCard = ({ title, value, subtitle, icon: Icon, colorClass }) => {
+const StatCard = ({ title, value, subtitle, icon: Icon, colorClass, onClick }) => {
   return (
-    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+    <div 
+      className={`bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 ${onClick ? 'cursor-pointer hover:shadow-md hover:border-gray-300 transition-all' : ''}`}
+      onClick={onClick}
+    >
       <div className={`p-4 rounded-xl ${colorClass}`}>
         <Icon className="w-8 h-8" />
       </div>

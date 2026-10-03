@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, deleteDoc, 
 import { db } from '../../firebase/config';
 import { BarChart3, Banknote, CreditCard, ShoppingBag, TrendingUp, CheckCircle2, Calendar, ListOrdered, AlertCircle, Download, Receipt, FileText } from 'lucide-react';
 import StatCard from './StatCard';
+import { printCompletedOrdersReport } from '../../utils/printer';
 
 const StatsPanel = () => {
   const [stats, setStats] = useState({
@@ -15,6 +16,8 @@ const StatsPanel = () => {
   
   const [productRanking, setProductRanking] = useState([]);
   const [hasActiveOrders, setHasActiveOrders] = useState(false);
+  const [completedOrders, setCompletedOrders] = useState([]);
+  const [showOrdersModal, setShowOrdersModal] = useState(false);
   
   // By default, start of today and end of today
   const defaultStart = new Date();
@@ -36,6 +39,23 @@ const StatsPanel = () => {
   const [closedSuccess, setClosedSuccess] = useState(false);
   const [isAlreadyClosed, setIsAlreadyClosed] = useState(false);
   const [closedDocId, setClosedDocId] = useState(null);
+  
+  // To pass settings to printer
+  const [globalSettings, setGlobalSettings] = useState({});
+
+  useEffect(() => {
+    // Fetch global settings once for the printer
+    const fetchSettings = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'settings')));
+        const settingsData = snap.docs.find(d => d.id === 'general')?.data() || {};
+        setGlobalSettings(settingsData);
+      } catch (err) {
+        console.error("Error fetching settings:", err);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   useEffect(() => {
     fetchStats();
@@ -77,14 +97,25 @@ const StatsPanel = () => {
         // Skip canceled orders
         if (data.status === 'CANCELED') return;
 
+        if (data.status === 'COMPLETED') {
+          completedOrders.push({ id: doc.id, ...data, createdAt: data.createdAt?.toDate() || new Date() });
+        }
+
         const amount = Number(data.total) || 0;
         totalSales += amount;
         totalOrders += 1;
 
-        if (data.paymentMethod === 'cash') {
-          cashTotal += amount;
+        if (data.payments && data.payments.length > 0) {
+          data.payments.forEach(p => {
+            if (p.method === 'cash') cashTotal += Number(p.amount) || 0;
+            else cardTotal += Number(p.amount) || 0;
+          });
         } else {
-          cardTotal += amount;
+          if (data.paymentMethod === 'cash') {
+            cashTotal += amount;
+          } else {
+            cardTotal += amount;
+          }
         }
         
         if (data.invoiceId) {
@@ -137,6 +168,7 @@ const StatsPanel = () => {
       });
       setProductRanking(ranking);
       setHasActiveOrders(activeCount > 0);
+      setCompletedOrders(completedOrders.sort((a,b) => b.createdAt - a.createdAt));
     } catch (error) {
       console.error("Error fetching stats:", error);
     } finally {
@@ -342,6 +374,7 @@ const StatsPanel = () => {
               value={stats.totalOrders.toString()}
               icon={ShoppingBag}
               colorClass="bg-blue-100 text-blue-600"
+              onClick={() => setShowOrdersModal(true)}
             />
             <StatCard 
               title="Ticket Medio" 
@@ -468,6 +501,90 @@ const StatsPanel = () => {
             </div>
           </div>
         </>
+      )}
+      {/* Completed Orders Modal */}
+      {showOrdersModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
+              <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3">
+                Pedidos Completados
+                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">
+                  {completedOrders.length}
+                </span>
+              </h2>
+              <button 
+                onClick={() => setShowOrdersModal(false)}
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+              >
+                <CheckCircle2 className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
+            {/* Resumen del Periodo */}
+            <div className="bg-white border-b border-gray-200 p-6 flex flex-wrap gap-4 sm:gap-8 justify-between sm:justify-start text-sm font-medium text-gray-700 shadow-inner">
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Pedidos</span>
+                <span className="text-2xl font-black text-gray-900">{stats.totalOrders}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">T. Simplificados</span>
+                <span className="text-2xl font-black text-gray-900">{completedOrders.filter(o => !o.invoiceId).length}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">F. Nominativas</span>
+                <span className="text-2xl font-black text-gray-900">{completedOrders.filter(o => o.invoiceId).length}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">Esperado Caja</span>
+                <span className="text-2xl font-black text-green-600">{stats.cashTotal.toFixed(2)}€</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">Tarjeta/Online</span>
+                <span className="text-2xl font-black text-blue-600">{stats.cardTotal.toFixed(2)}€</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Acumulado</span>
+                <span className="text-2xl font-black text-purple-600">{stats.totalSales.toFixed(2)}€</span>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-4 bg-gray-50">
+              {completedOrders.length === 0 ? (
+                <div className="text-center text-gray-500 py-10">No hay pedidos completados en este periodo.</div>
+              ) : (
+                completedOrders.map((order, i) => (
+                  <div key={order.id || i} className="bg-white border rounded-xl p-4 shadow-sm flex flex-col md:flex-row justify-between gap-4 hover:border-blue-300 transition-colors">
+                    <div>
+                      <div className="flex gap-2 items-center mb-2">
+                        <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded">#{order.id.slice(-4).toUpperCase()}</span>
+                        <span className="font-bold text-gray-800">{order.customerInfo?.name || 'Cliente'}</span>
+                      </div>
+                      <div className="text-sm text-gray-500 space-y-1">
+                        <p>{order.createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {order.orderType === 'delivery' ? 'A Domicilio' : order.orderType === 'pickup' ? 'Recoger' : 'En Mesa'}</p>
+                        <p className="font-medium text-gray-700">Total: {Number(order.total || 0).toFixed(2)}€ ({order.paymentMethod === 'cash' ? 'Efectivo' : order.paymentMethod === 'split' ? 'Mixto' : 'Tarjeta'})</p>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {order.items?.map((item, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <span className="font-bold">{item.quantity}x</span>
+                          <span className="truncate max-w-[200px]">{item.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-4 border-t bg-white flex justify-end">
+              <button 
+                onClick={() => printCompletedOrdersReport(completedOrders, stats, globalSettings)} 
+                className="px-6 py-2 bg-gray-800 text-white font-bold rounded-xl hover:bg-black transition-colors flex gap-2 items-center"
+              >
+                <FileText className="w-5 h-5" /> Imprimir Listado
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

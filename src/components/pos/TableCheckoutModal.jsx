@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { X, Plus, CreditCard, SplitSquareHorizontal, Users, List, Minus, CheckCircle2 } from 'lucide-react';
+import { X, Plus, CreditCard, SplitSquareHorizontal, Users, List, Minus, CheckCircle2, Printer } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+import { printOrderSummary } from '../../utils/printer';
 
-const TableCheckoutModal = ({ table, order, onClose, onOpenManualOrder }) => {
+const TableCheckoutModal = ({ table, order, globalSettings, onClose, onOpenManualOrder }) => {
   const [view, setView] = useState('menu'); // 'menu' | 'split' | 'payment'
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -182,6 +183,19 @@ const TableCheckoutModal = ({ table, order, onClose, onOpenManualOrder }) => {
                 </div>
                 <div className="bg-white p-3 rounded-full group-hover:scale-110 transition-transform shadow-sm">
                   <Plus className="w-6 h-6" />
+                </div>
+              </button>
+
+              <button 
+                onClick={() => printOrderSummary(order, globalSettings)}
+                className="w-full bg-indigo-50 border-2 border-indigo-200 hover:border-indigo-500 text-indigo-700 font-bold py-4 px-6 rounded-2xl flex items-center justify-between group transition-all"
+              >
+                <div className="flex flex-col text-left">
+                  <span className="text-lg">Imprimir Pre-cuenta</span>
+                  <span className="text-sm font-medium opacity-80">Ticket de revisión para el cliente</span>
+                </div>
+                <div className="bg-white p-3 rounded-full group-hover:scale-110 transition-transform shadow-sm">
+                  <Printer className="w-6 h-6" />
                 </div>
               </button>
 

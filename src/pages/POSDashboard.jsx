@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import KanbanBoard from '../components/pos/KanbanBoard';
 import SettingsPanel from '../components/pos/SettingsPanel';
@@ -7,6 +7,7 @@ import ManualOrderPanel from '../components/pos/ManualOrderPanel';
 import TableMapPanel from '../components/pos/TableMapPanel';
 import StatsPanel from '../components/pos/StatsPanel';
 import InvoiceManagerPanel from '../components/pos/InvoiceManagerPanel';
+import AutoPrinter from '../components/pos/AutoPrinter';
 import { LayoutDashboard, Settings, LogOut, Bell, ShoppingBag, BarChart3, FileText, MapPin } from 'lucide-react';
 
 const POSDashboard = () => {
@@ -14,23 +15,22 @@ const POSDashboard = () => {
   const [globalSettings, setGlobalSettings] = useState(null);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const docSnap = await getDoc(doc(db, 'settings', 'general'));
-        if (docSnap.exists()) {
-          setGlobalSettings(docSnap.data());
-        }
-      } catch (error) {
-        console.error("Error loading settings:", error);
+    const unsubscribe = onSnapshot(doc(db, 'settings', 'general'), (docSnap) => {
+      if (docSnap.exists()) {
+        setGlobalSettings(docSnap.data());
       }
-    };
-    fetchSettings();
+    }, (error) => {
+      console.error("Error loading settings:", error);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const logoUrl = globalSettings?.logoUrl !== undefined ? globalSettings.logoUrl : '/logo.jpg';
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col lg:flex-row font-sans">
+      <AutoPrinter globalSettings={globalSettings} />
       {/* Sidebar (Desktop) / Bottom Nav (Mobile) */}
       <aside className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 flex flex-row justify-around p-2 lg:relative lg:p-0 lg:flex-col lg:w-64 lg:h-screen lg:border-r lg:border-t-0 lg:justify-start">
         
@@ -141,7 +141,7 @@ const POSDashboard = () => {
         {/* Main Area */}
         <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 lg:p-6 bg-gray-100">
           {activeTab === 'nuevo_pedido' && <ManualOrderPanel />}
-          {activeTab === 'mesas' && <TableMapPanel />}
+          {activeTab === 'mesas' && <TableMapPanel globalSettings={globalSettings} />}
           {activeTab === 'pedidos' && <KanbanBoard />}
           {activeTab === 'configuracion' && <SettingsPanel />}
           {activeTab === 'estadisticas' && <StatsPanel />}

@@ -171,8 +171,8 @@ export const printKitchenTicket = (order, settings, newItemsOnly = null) => {
       .kitchen-ticket { padding: 4mm; }
       .k-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px; }
       .k-company { font-size: 14px; color: #555; }
-      .k-dest { font-weight: 900; font-size: 24px; margin: 4px 0; border: 3px solid #000; padding: 4px; display: inline-block; width: 90%; text-transform: uppercase; }
-      .k-dest.dine_in { background-color: #000; color: #fff; }
+      .k-dest { font-weight: 900; font-size: 26px; margin: 4px 0; border: 3px solid #000; padding: 8px; display: inline-block; width: 90%; text-transform: uppercase; text-align: center; }
+      .k-dest.dine_in { color: #000; border: 4px solid #000; border-radius: 8px; }
       .k-meta { font-weight: bold; font-size: 16px; margin-top: 4px; }
       .k-items-list { margin-bottom: 10px; }
       .k-item { display: flex; align-items: flex-start; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px; }
@@ -181,6 +181,189 @@ export const printKitchenTicket = (order, settings, newItemsOnly = null) => {
       .k-name { font-weight: 900; font-size: 18px; }
       .k-mods { font-weight: bold; font-size: 14px; color: #333; margin-left: 10px; }
       .k-notes { border: 2px dashed #000; padding: 6px; font-weight: 900; font-size: 16px; background-color: #f9f9f9; }
+    </style>
+  `;
+
+  executePrint(htmlContent, styles);
+};
+
+// 3. Ticket Resumen (Pre-cuenta de Mesa con precios)
+export const printOrderSummary = (order, settings) => {
+  const companyName = settings?.pizzeriaName || "PIZZERÍA";
+  const dateStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  const dateFull = new Date().toLocaleDateString();
+  
+  let itemsHtml = '';
+  order.items.forEach(item => {
+    const totalItemPrice = item.price * item.quantity;
+    itemsHtml += `
+      <div class="s-item">
+        <div class="s-qty">${item.quantity}x</div>
+        <div class="s-name">
+          <div>${item.name}</div>
+          ${item.modifiers ? `<div class="s-mods">${item.modifiers}</div>` : ''}
+        </div>
+        <div class="s-price">${totalItemPrice.toFixed(2)}€</div>
+      </div>
+    `;
+  });
+
+  const total = order.total || 0;
+  const paidAmount = order.paidAmount || 0;
+  const remainingAmount = Math.max(0, total - paidAmount);
+
+  const htmlContent = `
+    <div class="summary-ticket">
+      <div class="s-header">
+        <div class="s-company">${companyName}</div>
+        <div class="s-meta"><b>MESA: ${order.tableName || order.tableId || 'Barra'}</b></div>
+        <div class="s-meta">FECHA: ${dateFull} ${dateStr}</div>
+        <div class="s-meta-small">TICKET NO VÁLIDO COMO FACTURA</div>
+      </div>
+      
+      <div class="s-items-list">
+        ${itemsHtml}
+      </div>
+
+      <div class="s-totals">
+        <div class="s-total-line">
+          <span>TOTAL:</span>
+          <span>${total.toFixed(2)}€</span>
+        </div>
+        ${paidAmount > 0 ? `
+          <div class="s-total-line s-paid">
+            <span>PAGADO:</span>
+            <span>-${paidAmount.toFixed(2)}€</span>
+          </div>
+          <div class="s-total-line s-remaining">
+            <span>PENDIENTE:</span>
+            <span>${remainingAmount.toFixed(2)}€</span>
+          </div>
+        ` : ''}
+      </div>
+      
+      <div class="s-footer">
+        ¡Gracias por su visita!
+      </div>
+    </div>
+  `;
+
+  const styles = `
+    <style>
+      @page { margin: 0; }
+      body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.2; color: #000; width: 80mm; }
+      .summary-ticket { padding: 4mm; }
+      .s-header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+      .s-company { font-weight: 900; font-size: 18px; margin-bottom: 4px; }
+      .s-meta { font-size: 14px; margin: 2px 0; }
+      .s-meta-small { font-size: 10px; margin-top: 4px; font-style: italic; }
+      .s-items-list { border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+      .s-item { display: flex; align-items: flex-start; margin-bottom: 6px; font-size: 14px; }
+      .s-qty { font-weight: bold; width: 30px; }
+      .s-name { flex-grow: 1; padding-right: 10px; }
+      .s-mods { font-size: 11px; font-style: italic; color: #444; }
+      .s-price { font-weight: bold; width: 60px; text-align: right; }
+      .s-totals { margin-bottom: 12px; }
+      .s-total-line { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+      .s-paid { color: #555; font-size: 14px; }
+      .s-remaining { font-size: 20px; font-weight: 900; margin-top: 4px; border-top: 1px solid #000; padding-top: 4px; }
+      .s-footer { text-align: center; font-size: 12px; font-style: italic; border-top: 1px solid #000; padding-top: 8px; }
+    </style>
+  `;
+
+  executePrint(htmlContent, styles);
+};
+
+// 4. Informe de Cierre de Caja (Pedidos Completados)
+export const printCompletedOrdersReport = (completedOrders, stats, settings) => {
+  const companyName = settings?.pizzeriaName || "Pizzería";
+  const dateStr = new Date().toLocaleDateString('es-ES');
+  const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+  const simplificados = completedOrders.filter(o => !o.invoiceId).length;
+  const facturas = completedOrders.filter(o => o.invoiceId).length;
+
+  let ordersHtml = '';
+  completedOrders.forEach(order => {
+    const orderDate = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt?.seconds * 1000);
+    const orderTime = orderDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const typeStr = order.orderType === 'delivery' ? 'Domicilio' : order.orderType === 'pickup' ? 'Recoger' : 'Mesa';
+    const payStr = order.paymentMethod === 'cash' ? 'Efectivo' : order.paymentMethod === 'split' ? 'Mixto' : 'Tarjeta';
+    
+    let itemsHtml = '';
+    if (order.items && order.items.length > 0) {
+      itemsHtml = '<div class="o-items-list">';
+      order.items.forEach(item => {
+        itemsHtml += `<div class="o-item-row"><span class="o-item-qty">${item.quantity}x</span><span class="o-item-name">${item.name}</span></div>`;
+      });
+      itemsHtml += '</div>';
+    }
+
+    ordersHtml += `
+      <div class="o-item">
+        <div class="o-head">
+          <span class="o-id">#${order.id.slice(-4).toUpperCase()}</span>
+          <span class="o-time">${orderTime}</span>
+        </div>
+        <div class="o-client">${order.customerInfo?.name || 'Cliente'} (${typeStr})</div>
+        ${itemsHtml}
+        <div class="o-total">${Number(order.total || 0).toFixed(2)}€ [${payStr}]</div>
+      </div>
+    `;
+  });
+
+  const htmlContent = `
+    <div class="report-ticket">
+      <div class="r-header">
+        <div class="r-company">${companyName}</div>
+        <div class="r-title">CIERRE DE CAJA</div>
+        <div class="r-meta">FECHA: ${dateStr} ${timeStr}</div>
+      </div>
+      
+      <div class="r-summary">
+        <div class="r-line"><span>Total Pedidos:</span> <span>${stats.totalOrders}</span></div>
+        <div class="r-line"><span>Simplificados:</span> <span>${simplificados}</span></div>
+        <div class="r-line"><span>F. Nominativas:</span> <span>${facturas}</span></div>
+        <div class="r-line r-money"><span>Esperado Caja:</span> <span>${stats.cashTotal.toFixed(2)}€</span></div>
+        <div class="r-line r-money"><span>Tarjeta/Online:</span> <span>${stats.cardTotal.toFixed(2)}€</span></div>
+        <div class="r-line r-total"><span>TOTAL ACUMULADO:</span> <span>${stats.totalSales.toFixed(2)}€</span></div>
+      </div>
+
+      <div class="r-list-title">PEDIDOS COMPLETADOS</div>
+      <div class="r-orders">
+        ${ordersHtml}
+      </div>
+      
+      <div class="r-footer">Fin del informe</div>
+    </div>
+  `;
+
+  const styles = `
+    <style>
+      @page { margin: 0; }
+      body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; color: #000; width: 80mm; }
+      .report-ticket { padding: 4mm; }
+      .r-header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+      .r-company { font-weight: 900; font-size: 18px; margin-bottom: 4px; }
+      .r-title { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
+      .r-meta { font-size: 12px; }
+      
+      .r-summary { border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+      .r-line { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+      .r-money { font-weight: bold; }
+      .r-total { font-weight: 900; font-size: 16px; margin-top: 6px; border-top: 1px solid #000; padding-top: 4px; }
+      
+      .r-list-title { font-weight: bold; font-size: 14px; text-align: center; margin-bottom: 8px; }
+      
+      .o-item { border-bottom: 1px dotted #888; padding-bottom: 6px; margin-bottom: 6px; }
+      .o-head { display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; }
+      .o-client { font-size: 12px; margin: 2px 0; font-weight: 600; }
+      .o-items-list { margin: 4px 0 6px 0; font-size: 11px; padding-left: 4px; border-left: 2px solid #ddd; }
+      .o-item-row { display: flex; gap: 4px; margin-bottom: 2px; }
+      .o-item-qty { font-weight: bold; min-width: 20px; }
+      .o-total { font-size: 13px; font-weight: bold; text-align: right; border-top: 1px dashed #eee; padding-top: 2px; }
+      
+      .r-footer { text-align: center; font-size: 12px; margin-top: 12px; }
     </style>
   `;
 

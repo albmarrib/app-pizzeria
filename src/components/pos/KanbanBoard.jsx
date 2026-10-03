@@ -342,6 +342,10 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
 const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onServeItem }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  
+  // Default to today if column is COMPLETED
+  const todayDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const [filterDate, setFilterDate] = useState(column === 'COMPLETED' ? todayDateStr : '');
 
   if (!column) return null;
 
@@ -360,6 +364,11 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
     if (filterType !== 'all') {
       if (filterType === 'delivery' && order.orderType !== 'delivery') return false;
       if (filterType === 'pickup' && order.orderType === 'delivery') return false;
+    }
+    // Date filter
+    if (filterDate) {
+      const orderDateStr = new Date(order.createdAt).toLocaleDateString('en-CA');
+      if (orderDateStr !== filterDate) return false;
     }
     return true;
   });
@@ -392,7 +401,14 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
               onChange={e => setSearchTerm(e.target.value)}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-sm"
             />
-            <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
+            <div className="flex bg-gray-100 p-1 rounded-xl shrink-0 gap-2 items-center px-2">
+              <input 
+                type="date" 
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                className="px-2 py-1.5 rounded-lg text-sm font-bold bg-white shadow-sm border border-gray-200 outline-none text-gray-700 h-full"
+              />
+              <div className="w-px h-6 bg-gray-300 mx-1"></div>
               <button 
                 onClick={() => setFilterType('all')}
                 className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${filterType === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
@@ -679,41 +695,7 @@ const KanbanBoard = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!autoPrintTickets || !globalSettings) return;
 
-    orders.forEach(async (orderData) => {
-      if (orderData.status !== 'COMPLETED' && orderData.status !== 'SERVED') {
-        const unprintedItems = orderData.items?.filter(i => i.printed === false) || [];
-        
-        if (unprintedItems.length > 0) {
-          const printBatchId = `${orderData.id}_${unprintedItems.length}`;
-          if (printingQueueRef.current.has(printBatchId)) return;
-          
-          printingQueueRef.current.add(printBatchId);
-
-          // Imprimir SOLO los ítems no impresos
-          printKitchenTicket(orderData, globalSettings, unprintedItems);
-          
-          // Marcar estos ítems como impresos obteniendo la versión más reciente para evitar race-conditions
-          try {
-            const freshSnap = await getDoc(doc(db, 'orders', orderData.id));
-            if (freshSnap.exists()) {
-              const freshData = freshSnap.data();
-              const updatedItems = freshData.items.map(i => {
-                if (i.printed === false) return { ...i, printed: true };
-                return i;
-              });
-              await updateDoc(doc(db, 'orders', orderData.id), { items: updatedItems });
-            }
-          } catch(e) {
-            console.error("Error marcando ítems como impresos", e);
-            printingQueueRef.current.delete(printBatchId); // Permitir reintento si falla
-          }
-        }
-      }
-    });
-  }, [orders, autoPrintTickets, globalSettings]);
 
   const isItemReady = (item) => {
     const sec = sections.find(s => s.id === item.sectionId);
@@ -794,7 +776,6 @@ const KanbanBoard = () => {
           items: newItems,
           status: newOrderStatus
         });
-        
         // Auto-print check
         if (autoPrintTickets && newStatus === activeColumns[activeColumns.length - 1]) {
           printDeliveryLabel(order, globalSettings, itemIndex, sections);
@@ -912,7 +893,6 @@ const KanbanBoard = () => {
           items: newItems,
           status: newOrderStatus
         });
-        
         // Auto-print check for Drag & Drop
         if (autoPrintTickets && targetColumn === activeSectionColumns[activeSectionColumns.length - 1]) {
           // Find which items were moved to trigger individual prints
@@ -1053,7 +1033,7 @@ const KanbanBoard = () => {
         <ColumnListModal 
           column={modalColumn}
           title={getColumnTitle(modalColumn)}
-          orders={visibleOrders.filter(o => {
+          orders={orders.filter(o => {
              // Replicate the filtering logic for the column
              if (isExpeditor) return o.status === modalColumn;
              

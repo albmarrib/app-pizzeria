@@ -193,6 +193,9 @@ export const printOrderSummary = (order, settings) => {
   const dateStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   const dateFull = new Date().toLocaleDateString();
   
+  const orderUrl = window.location.origin + '/pedido/' + order.id;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(orderUrl)}`;
+  
   let itemsHtml = '';
   order.items.forEach(item => {
     const totalItemPrice = item.price * item.quantity;
@@ -219,6 +222,8 @@ export const printOrderSummary = (order, settings) => {
         <div class="s-meta"><b>MESA: ${order.tableName || order.tableId || 'Barra'}</b></div>
         <div class="s-meta">FECHA: ${dateFull} ${dateStr}</div>
         <div class="s-meta-small">TICKET NO VÁLIDO COMO FACTURA</div>
+        <div class="qr-container"><img src="${qrUrl}" alt="QR Factura" /></div>
+        <div class="s-meta-small" style="font-weight:bold;">Escanea para factura online</div>
       </div>
       
       <div class="s-items-list">
@@ -257,6 +262,8 @@ export const printOrderSummary = (order, settings) => {
       .s-company { font-weight: 900; font-size: 18px; margin-bottom: 4px; }
       .s-meta { font-size: 14px; margin: 2px 0; }
       .s-meta-small { font-size: 10px; margin-top: 4px; font-style: italic; }
+      .qr-container { display: flex; justify-content: center; margin: 8px 0; }
+      .qr-container img { width: 70px; height: 70px; }
       .s-items-list { border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
       .s-item { display: flex; align-items: flex-start; margin-bottom: 6px; font-size: 14px; }
       .s-qty { font-weight: bold; width: 30px; }

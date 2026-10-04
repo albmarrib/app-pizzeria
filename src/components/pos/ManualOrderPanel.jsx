@@ -3,6 +3,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import FullMenu from '../customer/FullMenu';
 import CartDrawer from '../customer/CartDrawer';
+import TableCheckoutModal from './TableCheckoutModal';
 import { ShoppingCart } from 'lucide-react';
 
 const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted }) => {
@@ -10,6 +11,7 @@ const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted })
   const [categories, setCategories] = useState([]);
   const [globalSettings, setGlobalSettings] = useState({});
   const [loading, setLoading] = useState(true);
+  const [orderToCheckout, setOrderToCheckout] = useState(null);
   
   const [cart, setCart] = useState([]);
   // No need for isCartOpen state as cart will be permanently visible inline
@@ -116,9 +118,31 @@ const ManualOrderPanel = ({ preselectedTable, existingOrder, onOrderCompleted })
           isPosMode={true}
           preselectedTable={preselectedTable}
           existingOrder={existingOrder}
-          onOrderCompleted={onOrderCompleted}
+          onOrderCompleted={(data) => {
+            if (data && data.action === 'checkout') {
+              setOrderToCheckout(data.order);
+            }
+            if (onOrderCompleted && (!data || !data.action)) {
+              onOrderCompleted();
+            }
+          }}
         />
       </div>
+
+      {orderToCheckout && (
+        <TableCheckoutModal 
+          table={{ id: orderToCheckout.tableId || 'pickup', label: orderToCheckout.tableName || 'Recogida/Barra' }}
+          order={orderToCheckout}
+          globalSettings={globalSettings}
+          onClose={() => {
+            setOrderToCheckout(null);
+            if (onOrderCompleted) onOrderCompleted();
+          }}
+          onOpenManualOrder={() => {
+            alert('Para editar este pedido, usa la vista de gestión o Mesa.');
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -199,10 +199,17 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
           return false;
         }
       }
-    } else if (orderType === 'pickup' && !isPosMode) {
-      if (!customerInfo.name.trim() || !customerInfo.email.trim() || !customerInfo.phone.trim()) {
-        alert("El nombre, email y teléfono son obligatorios para recoger en tienda.");
-        return false;
+    } else if (orderType === 'pickup') {
+      if (isPosMode) {
+        if (!customerInfo.name.trim() && !customerInfo.phone.trim()) {
+          alert("Para pedidos a recoger, debes introducir al menos un nombre o un teléfono para poder identificarlo.");
+          return false;
+        }
+      } else {
+        if (!customerInfo.name.trim() || !customerInfo.email.trim() || !customerInfo.phone.trim()) {
+          alert("El nombre, email y teléfono son obligatorios para recoger en tienda.");
+          return false;
+        }
       }
     }
     return true; // Validated
@@ -350,7 +357,10 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
 
     setIsCheckingOut(true);
     try {
-      const { docRef, code } = await buildAndSaveOrder(paymentMethodMock);
+      const isOpeningCheckout = paymentMethodMock === 'open_checkout';
+      const actualPaymentMock = isOpeningCheckout ? 'pending' : paymentMethodMock;
+      
+      const { docRef, code } = await buildAndSaveOrder(actualPaymentMock);
       
       onEmptyCart();
 
@@ -361,6 +371,18 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
         return;
       }
       
+      if (isOpeningCheckout) {
+        setOrderSuccess(false);
+        setStep(1);
+        setOrderCode('');
+        onClose();
+        if (onOrderCompleted) {
+          const fullOrderSnap = await getDoc(docRef);
+          onOrderCompleted({ action: 'checkout', order: { id: fullOrderSnap.id, ...fullOrderSnap.data() } });
+        }
+        return;
+      }
+
       // Lógica solo para TPV a partir de aquí
       if (code) setOrderCode(code);
       setOrderSuccess(true);
@@ -579,14 +601,14 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <User className="h-5 w-5" />
                   </div>
-                  <input type="text" name="name" value={customerInfo.name} onChange={handleInputChange} placeholder={isPosMode ? "Nombre (Opcional)" : "Nombre completo"} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
+                  <input type="text" name="name" value={customerInfo.name} onChange={handleInputChange} placeholder={isPosMode ? (orderType === 'pickup' ? "Nombre (Obligatorio si no hay tlf)" : "Nombre (Opcional)") : "Nombre completo"} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
                 </div>
                 
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <Phone className="h-5 w-5" />
                   </div>
-                  <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder={orderType === 'delivery' ? "Teléfono" : (isPosMode ? "Teléfono (Opcional)" : "Teléfono de contacto")} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
+                  <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder={orderType === 'delivery' ? "Teléfono" : (isPosMode ? (orderType === 'pickup' ? "Teléfono (Obligatorio si no hay nombre)" : "Teléfono (Opcional)") : "Teléfono de contacto")} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
                 </div>
                 
                 {/* Fidelidad: Aviso de Premio */}
@@ -825,13 +847,12 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                       <span>{orderType === 'dine_in' ? (existingOrder ? 'Marchar Añadidos a Cocina' : 'Marchar Pedido a Cocina') : 'Pendiente de Pago (Cobrar después)'}</span>
                     </button>
                   )}
-                  <button onClick={() => handleCheckout('cash')} disabled={isCheckingOut} className="w-full bg-black hover:bg-gray-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
-                    <span>Cobrar Efectivo Ahora</span>
-                  </button>
-                  <button onClick={() => handleCheckout('card')} disabled={isCheckingOut} className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-900 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
-                    <CreditCard className="w-5 h-5" />
-                    <span>Cobrar con Tarjeta Ahora</span>
-                  </button>
+                  {orderType !== 'dine_in' && (
+                    <button onClick={() => handleCheckout('open_checkout')} disabled={isCheckingOut} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70 shadow-lg shadow-green-500/30">
+                      <CreditCard className="w-5 h-5" />
+                      <span>Cobrar Ahora (Ticket / Dividir)</span>
+                    </button>
+                  )}
                 </div>
               ) : showOnlinePayment ? (
                 // El formulario está arriba, aquí no mostramos botones extra

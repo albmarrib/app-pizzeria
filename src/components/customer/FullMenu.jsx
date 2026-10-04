@@ -13,7 +13,7 @@ const getCategoryIcon = (catName) => {
   return <Utensils className="w-5 h-5" />; // default
 };
 
-const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode }) => {
+const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode, isViewMode }) => {
   const [activeCategory, setActiveCategory] = useState(categories[0]?.name || '');
 
   // Opcional: Implementar scroll spy para cambiar la categoría activa automáticamente
@@ -50,7 +50,7 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode 
       }
     };
 
-    const container = isPosMode ? document.getElementById('pos-scroll-container') : window;
+    const container = isPosMode ? null : window;
     if (container) {
        container.addEventListener('scroll', handleScroll);
        return () => container.removeEventListener('scroll', handleScroll);
@@ -58,20 +58,20 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode 
   }, [categories, activeCategory, isPosMode]);
 
   const scrollToCategory = (catName) => {
-    const el = document.getElementById(`category-${catName}`);
-    if (el) {
-      if (isPosMode) {
-        const container = document.getElementById('pos-scroll-container');
-        // Calculate offset relative to the scrolling container
-        const containerRect = container.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-        const y = elRect.top - containerRect.top + container.scrollTop - 24; // 24px offset for margin
-        container.scrollTo({ top: y, behavior: 'smooth' });
-      } else {
+    setActiveCategory(catName);
+    
+    if (!isPosMode) {
+      const el = document.getElementById(`category-${catName}`);
+      if (el) {
         const y = el.getBoundingClientRect().top + window.scrollY - 140;
         window.scrollTo({ top: y, behavior: 'smooth' });
       }
-      setActiveCategory(catName);
+    } else {
+      // In POS mode, scroll to top of the container since content replaces
+      const container = document.getElementById('pos-scroll-container');
+      if (container) {
+        container.scrollTo({ top: 0 });
+      }
     }
   };
 
@@ -99,9 +99,9 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode 
         </div>
 
         {/* Right Column: Products Grid */}
-        <div className="flex-1 h-full overflow-y-auto pb-24 px-6 pt-6 space-y-12" id="pos-scroll-container">
-          {categories.map((cat) => (
-            <section key={cat.name} id={`category-${cat.name}`} className="scroll-mt-6">
+        <div className="flex-1 h-full overflow-y-auto pb-24 px-6 pt-6" id="pos-scroll-container">
+          {categories.filter(cat => cat.name === activeCategory).map((cat) => (
+            <section key={cat.name} id={`category-${cat.name}`}>
               <div className="flex items-center gap-4 mb-6">
                 <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">{cat.name}</h2>
                 <div className="flex-1 h-1 bg-gray-200 rounded-full"></div>
@@ -112,6 +112,7 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode 
                 onAdd={onAdd} 
                 isTableMode={isTableMode}
                 isPosMode={isPosMode}
+                isViewMode={isViewMode}
               />
             </section>
           ))}
@@ -169,6 +170,7 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode 
               onAdd={onAdd} 
               isTableMode={isTableMode}
               isPosMode={isPosMode}
+              isViewMode={isViewMode}
             />
           </section>
         ))}

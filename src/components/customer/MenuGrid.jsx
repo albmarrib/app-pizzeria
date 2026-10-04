@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ProductCard from './ProductCard';
 import ProductModal from './ProductModal';
 
-const MenuGrid = ({ products, onAdd, isTableMode, isPosMode }) => {
+const MenuGrid = ({ products, onAdd, isTableMode, isPosMode, isViewMode }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   if (products.length === 0) {
@@ -53,6 +53,7 @@ const MenuGrid = ({ products, onAdd, isTableMode, isPosMode }) => {
           onClose={handleCloseModal} 
           onAdd={handleAddToCart}
           isTableMode={isTableMode}
+          isViewMode={isViewMode}
         />
       )}
     </>

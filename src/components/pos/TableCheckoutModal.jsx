@@ -52,13 +52,15 @@ const TableCheckoutModal = ({ table, order, globalSettings, onClose, onOpenManua
         });
       }
 
+      const shouldComplete = isFullyPaid && (order.orderType === 'dine_in' || order.status === 'READY_FOR_ASSEMBLY');
+
       const orderRef = doc(db, 'orders', order.id);
       await updateDoc(orderRef, {
         payments: updatedPayments,
         paidAmount: newPaidAmount,
         ...(splitMode === 'items' ? { items: updatedItems } : {}),
         ...(isFullyPaid ? {
-          status: 'COMPLETED',
+          ...(shouldComplete ? { status: 'COMPLETED' } : {}),
           paymentStatus: 'Pagado',
           paymentMethod: updatedPayments.length > 1 ? 'split' : method
         } : {

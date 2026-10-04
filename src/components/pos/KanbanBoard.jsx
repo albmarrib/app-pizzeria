@@ -5,13 +5,13 @@ import { Clock, CheckCircle2, Flame, AlertCircle, Trash2, CreditCard, ChefHat, E
 import { DndContext, useDraggable, useDroppable, closestCenter, DragOverlay, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
 import { printDeliveryLabel, printKitchenTicket } from '../../utils/printer';
 import { useRef } from 'react';
+import TableCheckoutModal from './TableCheckoutModal';
 
-const EXPEDITOR_COLUMNS = ['Nuevos Pedidos', 'IN_PROGRESS', 'READY_FOR_ASSEMBLY', 'OUT_FOR_DELIVERY'];
+const EXPEDITOR_COLUMNS = ['Nuevos Pedidos', 'READY_FOR_ASSEMBLY', 'OUT_FOR_DELIVERY'];
 
 const getColumnTitle = (col) => {
   switch (col) {
     case 'Nuevos Pedidos': return 'Nuevos';
-    case 'IN_PROGRESS': return 'En Proceso';
     case 'READY_FOR_ASSEMBLY': return 'Para Ensamblar / Entregar';
     case 'OUT_FOR_DELIVERY': return 'En Reparto';
     case 'COMPLETED': return 'Completados';
@@ -91,7 +91,7 @@ const getWhatsAppLink = (order) => {
 };
 
 // Draggable Order Card Component
-const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onPrintTicket, onServeItem }) => {
+const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onPrintTicket, onServeItem, onCheckoutOrder }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: order.id,
     data: { order, currentColumn: column }
@@ -309,37 +309,32 @@ const OrderCard = ({ order, column, isExpeditor, activeView, sections, activeSec
         <button 
           onClick={async (e) => {
             e.stopPropagation();
+            if (order.paymentStatus === 'Pendiente' && order.orderType === 'pickup') {
+              if (onCheckoutOrder) onCheckoutOrder(order);
+              return;
+            }
             if (order.orderType === 'delivery') {
               if (onMoveToDelivery) {
                 onMoveToDelivery(order.id);
               }
             } else {
-              await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
+              const newItems = order.items.map(i => ({ ...i, status: 'SERVED' }));
+              await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED', items: newItems });
             }
           }}
           className="mt-2 w-full bg-green-500 hover:bg-green-600 text-white font-black py-3 rounded-xl shadow-lg shadow-green-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 border border-green-600"
         >
           <CheckCircle2 className="w-5 h-5" /> 
-          {order.orderType === 'delivery' ? 'RECOGIDO POR REPARTIDOR' : 'ENTREGADO AL CLIENTE'}
+          {order.orderType === 'pickup' && order.paymentStatus === 'Pendiente' ? 'COBRAR Y ENTREGAR' : (order.orderType === 'delivery' ? 'RECOGIDO POR REPARTIDOR' : 'ENTREGADO AL CLIENTE')}
         </button>
       )}
 
-      {isExpeditor && column === 'OUT_FOR_DELIVERY' && (
-        <button 
-          onClick={async (e) => {
-            e.stopPropagation();
-            await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
-          }}
-          className="mt-2 w-full bg-purple-500 hover:bg-purple-600 text-white font-black py-3 rounded-xl shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 transition-all active:scale-95 border border-purple-600"
-        >
-          <CheckCircle2 className="w-5 h-5" /> ENTREGADO AL CLIENTE
-        </button>
-      )}
+      {/* Removido el botón manual de "ENTREGADO AL CLIENTE" en OUT_FOR_DELIVERY a petición del usuario, ya que el repartidor lo marca desde su app. */}
     </div>
   );
 };
 
-const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onServeItem }) => {
+const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeView, sections, activeSectionColumns, isItemReady, moveItem, cancelOrder, now, alarmMinutes, onMoveToDelivery, onServeItem, onCheckoutOrder }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   
@@ -479,31 +474,27 @@ const ColumnListModal = ({ column, title, orders, onClose, isExpeditor, activeVi
                   {isExpeditor && column === 'READY_FOR_ASSEMBLY' && order.orderType !== 'dine_in' && (
                     <button 
                       onClick={async () => {
+                        if (order.paymentStatus === 'Pendiente' && order.orderType === 'pickup') {
+                          if (onCheckoutOrder) onCheckoutOrder(order);
+                          return;
+                        }
                         if (order.orderType === 'delivery') {
                           if (onMoveToDelivery) {
                             onMoveToDelivery(order.id);
                           }
                         } else {
-                          await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
+                          const newItems = order.items.map(i => ({ ...i, status: 'SERVED' }));
+                          await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED', items: newItems });
                         }
                       }}
                       className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center text-xs mt-2 transition-colors shadow-sm"
                     >
                       <CheckCircle2 className="w-4 h-4 mr-1" /> 
-                      {order.orderType === 'delivery' ? 'Recogido por Repartidor' : 'Entregado al Cliente'}
+                      {order.orderType === 'pickup' && order.paymentStatus === 'Pendiente' ? 'Cobrar y Entregar' : (order.orderType === 'delivery' ? 'Recogido por Repartidor' : 'Entregado al Cliente')}
                     </button>
                   )}
 
-                  {isExpeditor && column === 'OUT_FOR_DELIVERY' && (
-                    <button 
-                      onClick={async () => {
-                        await updateDoc(doc(db, 'orders', order.id), { status: 'COMPLETED' });
-                      }}
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center text-xs mt-2 transition-colors shadow-sm"
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-1" /> Entregado al Cliente
-                    </button>
-                  )}
+                  {/* Modal button for OUT_FOR_DELIVERY is also removed */}
                   
                   <button 
                     onClick={() => cancelOrder(order.id)}
@@ -627,6 +618,7 @@ const KanbanBoard = () => {
   
   const [globalSettings, setGlobalSettings] = useState(null);
   const [autoPrintTickets, setAutoPrintTickets] = useState(false);
+  const [orderToCheckout, setOrderToCheckout] = useState(null);
   
   // Refs for callbacks
   const globalSettingsRef = useRef(null);
@@ -709,20 +701,12 @@ const KanbanBoard = () => {
   const deriveOrderStatus = (items) => {
     if (!items || items.length === 0) return 'Nuevos Pedidos';
     
-    // Si todos los ítems están servidos, el pedido está servido
     if (items.every(i => i.status === 'SERVED')) return 'SERVED';
 
     const allReadyOrServed = items.every(i => isItemReady(i) || i.status === 'SERVED');
-    const allPendingOrServed = items.every(i => {
-      if (i.status === 'SERVED') return true;
-      const sec = sections.find(s => s.id === i.sectionId);
-      const firstCol = sec?.columns?.[0] || 'PENDING';
-      return !i.status || i.status === firstCol;
-    });
-    
     if (allReadyOrServed) return 'READY_FOR_ASSEMBLY';
-    if (allPendingOrServed && items.some(i => i.status !== 'SERVED')) return 'Nuevos Pedidos';
-    return 'IN_PROGRESS';
+    
+    return 'Nuevos Pedidos'; // Eliminamos IN_PROGRESS del flujo
   };
 
   const handleServeItem = async (order, itemIndex) => {
@@ -806,14 +790,23 @@ const KanbanBoard = () => {
   const confirmDeliveryDriver = async (driverName) => {
     if (!driverSelectOrderId) return;
     
+    const order = orders.find(o => o.id === driverSelectOrderId);
+    const newItems = order?.items.map(i => i.status !== 'SERVED' ? { ...i, status: 'Listo' } : i) || [];
+
     // Optimistic update
-    setOrders(prev => prev.map(o => o.id === driverSelectOrderId ? { ...o, status: 'OUT_FOR_DELIVERY', driverName } : o));
+    setOrders(prev => prev.map(o => o.id === driverSelectOrderId ? { ...o, status: 'OUT_FOR_DELIVERY', driverName, items: newItems } : o));
     
     try {
       await updateDoc(doc(db, 'orders', driverSelectOrderId), { 
         status: 'OUT_FOR_DELIVERY', 
-        driverName 
+        driverName,
+        items: newItems
       });
+
+      // Imprimir etiqueta para el repartidor automáticamente
+      if (order && globalSettingsRef.current) {
+        printDeliveryLabel({ ...order, driverName, status: 'OUT_FOR_DELIVERY' }, globalSettingsRef.current);
+      }
     } catch (err) {
       console.error("Error asignando repartidor: " + err.message);
     }
@@ -848,6 +841,7 @@ const KanbanBoard = () => {
 
     if (activeView === 'expeditor') {
       if (
+        (currentColumn === 'Nuevos Pedidos' && targetColumn === 'READY_FOR_ASSEMBLY') ||
         (currentColumn === 'READY_FOR_ASSEMBLY' && targetColumn === 'COMPLETED') ||
         (currentColumn === 'READY_FOR_ASSEMBLY' && targetColumn === 'OUT_FOR_DELIVERY' && order.orderType === 'delivery') ||
         (currentColumn === 'OUT_FOR_DELIVERY' && targetColumn === 'COMPLETED')
@@ -857,11 +851,18 @@ const KanbanBoard = () => {
           return; // The drag will be aborted visually, but we open the modal which handles the DB update
         }
 
+        let newItems = order.items;
+        if (targetColumn === 'READY_FOR_ASSEMBLY') {
+          newItems = order.items.map(i => i.status !== 'SERVED' ? { ...i, status: 'Listo' } : i);
+        } else if (targetColumn === 'COMPLETED') {
+          newItems = order.items.map(i => ({ ...i, status: 'SERVED' }));
+        }
+
         // Optimistic update
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: targetColumn } : o));
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: targetColumn, items: newItems } : o));
         
         try {
-          await updateDoc(doc(db, 'orders', orderId), { status: targetColumn });
+          await updateDoc(doc(db, 'orders', orderId), { status: targetColumn, items: newItems });
         } catch (err) {
           console.error("Error actualizando Firebase: " + err.message);
         }
@@ -926,20 +927,10 @@ const KanbanBoard = () => {
       <div className="flex items-center gap-2 mb-6 overflow-x-auto hide-scrollbar pb-2">
         <button 
           onClick={() => setActiveView('expeditor')}
-          className={`px-4 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeView === 'expeditor' ? 'bg-black text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+          className={`px-4 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 bg-black text-white shadow-md`}
         >
-          <ChefHat className="w-5 h-5" /> Mesa de Pase (General)
+          <ChefHat className="w-5 h-5" /> Panel de Cocina / Reparto
         </button>
-        <div className="w-px h-6 bg-gray-300 mx-2"></div>
-        {sections.map(sec => (
-          <button 
-            key={sec.id}
-            onClick={() => setActiveView(sec.id)}
-            className={`px-6 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${activeView === sec.id ? 'bg-red-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
-          >
-            {sec.name}
-          </button>
-        ))}
         
         <div className="flex-1"></div>
         <button 
@@ -1003,6 +994,7 @@ const KanbanBoard = () => {
                       }
                     }}
                     onServeItem={handleServeItem}
+                    onCheckoutOrder={setOrderToCheckout}
                   />
                 ))}
               </KanbanColumn>
@@ -1059,6 +1051,7 @@ const KanbanBoard = () => {
           alarmMinutes={alarmMinutes}
           onMoveToDelivery={handleMoveToDelivery}
           onServeItem={handleServeItem}
+          onCheckoutOrder={setOrderToCheckout}
         />
       )}
 
@@ -1095,6 +1088,18 @@ const KanbanBoard = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {orderToCheckout && (
+        <TableCheckoutModal 
+          table={{ id: orderToCheckout.tableId || 'pickup', label: orderToCheckout.tableName || 'Recogida/Barra' }}
+          order={orderToCheckout}
+          globalSettings={globalSettings}
+          onClose={() => setOrderToCheckout(null)}
+          onOpenManualOrder={() => {
+            alert('Para editar este pedido, usa la vista de gestión o Mesa.');
+          }}
+        />
       )}
     </div>
   );

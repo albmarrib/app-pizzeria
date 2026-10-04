@@ -56,7 +56,7 @@ const POSDashboard = () => {
             className={`flex flex-col lg:flex-row items-center gap-1 lg:gap-3 p-2 lg:p-3 rounded-xl transition-colors ${activeTab === 'nuevo_pedido' ? 'text-red-600 lg:bg-red-50 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             <ShoppingBag className="w-6 h-6 lg:w-6 lg:h-6" />
-            <span className="text-[10px] lg:text-base lg:block">Nuevo</span>
+            <span className="text-[10px] lg:text-base lg:block">Pedido</span>
           </button>
 
           <button 
@@ -64,7 +64,7 @@ const POSDashboard = () => {
             className={`flex flex-col lg:flex-row items-center gap-1 lg:gap-3 p-2 lg:p-3 rounded-xl transition-colors ${activeTab === 'pedidos' ? 'text-red-600 lg:bg-red-50 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             <LayoutDashboard className="w-6 h-6 lg:w-6 lg:h-6" />
-            <span className="text-[10px] lg:text-base lg:block">Pedidos</span>
+            <span className="text-[10px] lg:text-base lg:block">Cocina</span>
           </button>
           
           <button 
@@ -114,8 +114,8 @@ const POSDashboard = () => {
         {/* Top Header */}
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shrink-0">
           <h1 className="text-lg lg:text-xl font-bold text-gray-900 truncate">
-            {activeTab === 'nuevo_pedido' && 'Nuevo Pedido'}
-            {activeTab === 'pedidos' && 'Pedidos Activos'}
+            {activeTab === 'nuevo_pedido' && 'Tomar Pedido'}
+            {activeTab === 'pedidos' && 'Panel de Cocina'}
             {activeTab === 'mesas' && 'Salón / Mesas'}
             {activeTab === 'configuracion' && 'Configuración'}
             {activeTab === 'estadisticas' && 'Estadísticas'}

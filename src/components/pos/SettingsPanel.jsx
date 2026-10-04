@@ -5,7 +5,8 @@ import SectionsManager from './settings/SectionsManager';
 import ProductsManager from './settings/ProductsManager';
 import IngredientsManager from './settings/IngredientsManager';
 import ZonesManager from './settings/ZonesManager';
-import { Store, ListTree, Package, Leaf, LayoutGrid, MapPin } from 'lucide-react';
+import QrGeneratorPanel from './settings/QrGeneratorPanel';
+import { Store, ListTree, Package, Leaf, LayoutGrid, MapPin, QrCode } from 'lucide-react';
 
 const SettingsPanel = () => {
   const [activeSubTab, setActiveSubTab] = useState('general');
@@ -50,6 +51,12 @@ const SettingsPanel = () => {
         >
           <MapPin className="w-4 h-4" /> Zonas y Mesas
         </button>
+        <button 
+          onClick={() => setActiveSubTab('qr')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors ${activeSubTab === 'qr' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+        >
+          <QrCode className="w-4 h-4" /> Códigos QR
+        </button>
       </div>
 
       {/* Settings Content Area */}
@@ -61,6 +68,7 @@ const SettingsPanel = () => {
           {activeSubTab === 'products' && <ProductsManager />}
           {activeSubTab === 'extras' && <IngredientsManager />}
           {activeSubTab === 'mesas' && <ZonesManager />}
+          {activeSubTab === 'qr' && <QrGeneratorPanel />}
         </div>
       </div>
     </div>

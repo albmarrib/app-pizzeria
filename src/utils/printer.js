@@ -154,6 +154,7 @@ export const printKitchenTicket = (order, settings, newItemsOnly = null) => {
         <div class="k-company">${companyName} - COCINA</div>
         <div class="k-dest ${order.orderType}">${destinationHeader}</div>
         <div class="k-meta">PEDIDO #${orderIdShort} • ${dateStr}</div>
+        ${order.customerInfo?.name ? `<div class="k-meta" style="font-size:18px;">CLIENTE: ${order.customerInfo.name}</div>` : ''}
       </div>
       
       <div class="k-items-list">

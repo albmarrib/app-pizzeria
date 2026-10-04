@@ -56,17 +56,19 @@ const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
           <span className="hidden sm:inline">Zona Restaurante</span>
         </button>
         
-        <button 
-          onClick={onCartClick}
-          className="relative p-2 text-gray-800 hover:text-red-600 transition-colors bg-gray-50 rounded-full hover:bg-red-50"
-        >
-          <ShoppingCart className="w-6 h-6" />
-          {cartCount > 0 && (
-            <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-600 rounded-full -translate-y-1 translate-x-1 shadow-sm">
-              {cartCount}
-            </span>
-          )}
-        </button>
+        {!isViewMode && (
+          <button 
+            onClick={onCartClick}
+            className="relative p-2 text-gray-800 hover:text-red-600 transition-colors bg-gray-50 rounded-full hover:bg-red-50"
+          >
+            <ShoppingCart className="w-6 h-6" />
+            {cartCount > 0 && (
+              <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-600 rounded-full -translate-y-1 translate-x-1 shadow-sm">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
     </nav>
   );

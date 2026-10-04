@@ -12,7 +12,7 @@ const getDefaultIcon = (name) => {
   return <Info className="w-4 h-4" />;
 };
 
-const ProductModal = ({ product, onClose, onAdd, isTableMode }) => {
+const ProductModal = ({ product, onClose, onAdd, isTableMode, isViewMode }) => {
   const [addedExtras, setAddedExtras] = useState(new Set());
   const [quantity, setQuantity] = useState(1);
   const [totalPrice, setTotalPrice] = useState(product.price);
@@ -173,59 +173,65 @@ const ProductModal = ({ product, onClose, onAdd, isTableMode }) => {
 
         {/* Footer Actions */}
         <div className="p-4 sm:p-6 border-t border-gray-100 bg-white">
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="flex w-full sm:w-auto items-center justify-center bg-gray-100 rounded-2xl p-1.5 shadow-inner">
-              <button 
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="w-12 h-12 flex items-center justify-center text-xl text-gray-600 hover:bg-white hover:text-black hover:shadow-md rounded-xl transition-all"
-              >
-                -
-              </button>
-              <span className="w-12 text-center text-lg font-black">{quantity}</span>
-              <button 
-                onClick={() => setQuantity(quantity + 1)}
-                className="w-12 h-12 flex items-center justify-center text-xl text-gray-600 hover:bg-white hover:text-black hover:shadow-md rounded-xl transition-all"
-              >
-                +
-              </button>
+          {isViewMode ? (
+            <div className="flex justify-center p-2 bg-yellow-50 text-yellow-800 font-bold rounded-xl border border-yellow-200">
+              Modo solo lectura (Pedidos en mostrador)
             </div>
-            
-            <div className="flex flex-col w-full sm:flex-row gap-2 sm:gap-4 flex-1">
-              {isTableMode ? (
-                <>
-                  <button 
-                    onClick={() => handleAddToCart(false)}
-                    className="flex-1 bg-white hover:bg-gray-50 text-black border-2 border-black font-black text-sm py-3 sm:py-4 rounded-2xl transition-all flex items-center justify-center"
-                  >
-                    Añadir
-                  </button>
-                  <button 
-                    onClick={() => handleAddToCart(true)}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black text-sm py-3 sm:py-4 rounded-2xl shadow-xl shadow-red-600/30 transition-all flex items-center justify-center gap-2"
-                  >
-                    <span>Marchar a Cocina</span>
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button 
-                    onClick={() => handleAddToCart(false)}
-                    className="flex-1 bg-white hover:bg-gray-50 text-black border-2 border-black font-black text-sm py-3 sm:py-4 rounded-2xl transition-all flex items-center justify-center"
-                  >
-                    Añadir y seguir comprando
-                  </button>
-                  <button 
-                    onClick={() => handleAddToCart(true)}
-                    className="flex-1 bg-black hover:bg-gray-900 text-white font-black text-sm py-3 sm:py-4 rounded-2xl shadow-xl shadow-black/20 transition-all flex items-center justify-center gap-2"
-                  >
-                    <span>Añadir e ir a pagar</span>
-                    <span className="w-1.5 h-1.5 bg-white/30 rounded-full hidden sm:block"></span>
-                    <span className="hidden sm:inline">{totalPrice.toFixed(2)}€</span>
-                  </button>
-                </>
-              )}
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="flex w-full sm:w-auto items-center justify-center bg-gray-100 rounded-2xl p-1.5 shadow-inner">
+                <button 
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="w-12 h-12 flex items-center justify-center text-xl text-gray-600 hover:bg-white hover:text-black hover:shadow-md rounded-xl transition-all"
+                >
+                  -
+                </button>
+                <span className="w-12 text-center text-lg font-black">{quantity}</span>
+                <button 
+                  onClick={() => setQuantity(quantity + 1)}
+                  className="w-12 h-12 flex items-center justify-center text-xl text-gray-600 hover:bg-white hover:text-black hover:shadow-md rounded-xl transition-all"
+                >
+                  +
+                </button>
+              </div>
+              
+              <div className="flex flex-col w-full sm:flex-row gap-2 sm:gap-4 flex-1">
+                {isTableMode ? (
+                  <>
+                    <button 
+                      onClick={() => handleAddToCart(false)}
+                      className="flex-1 bg-white hover:bg-gray-50 text-black border-2 border-black font-black text-sm py-3 sm:py-4 rounded-2xl transition-all flex items-center justify-center"
+                    >
+                      Añadir
+                    </button>
+                    <button 
+                      onClick={() => handleAddToCart(true)}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black text-sm py-3 sm:py-4 rounded-2xl shadow-xl shadow-red-600/30 transition-all flex items-center justify-center gap-2"
+                    >
+                      <span>Marchar a Cocina</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => handleAddToCart(false)}
+                      className="flex-1 bg-white hover:bg-gray-50 text-black border-2 border-black font-black text-sm py-3 sm:py-4 rounded-2xl transition-all flex items-center justify-center"
+                    >
+                      Añadir y seguir comprando
+                    </button>
+                    <button 
+                      onClick={() => handleAddToCart(true)}
+                      className="flex-1 bg-black hover:bg-gray-900 text-white font-black text-sm py-3 sm:py-4 rounded-2xl shadow-xl shadow-black/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      <span>Añadir e ir a pagar</span>
+                      <span className="w-1.5 h-1.5 bg-white/30 rounded-full hidden sm:block"></span>
+                      <span className="hidden sm:inline">{totalPrice.toFixed(2)}€</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

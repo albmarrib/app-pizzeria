@@ -23,6 +23,10 @@ const CustomerWeb = () => {
 
   const emptyCart = () => setCart([]);
   
+  // Extract query params for view-only mode
+  const urlParams = new URLSearchParams(window.location.search);
+  const isViewMode = urlParams.get('mode') === 'view';
+
   // 'home' o nombre de la categoría (ej: 'Pizzas', 'Entrantes')
   const [viewState, setViewState] = useState('home'); 
 
@@ -107,7 +111,7 @@ const CustomerWeb = () => {
 
   return (
     <div className="min-h-screen font-sans relative flex flex-col">
-      <Navbar cartCount={cart.reduce((acc, item) => acc + item.quantity, 0)} onCartClick={() => setIsCartOpen(true)} globalSettings={globalSettings} />
+      <Navbar cartCount={cart.reduce((acc, item) => acc + item.quantity, 0)} onCartClick={() => setIsCartOpen(true)} globalSettings={globalSettings} isViewMode={isViewMode} />
       
       {viewState === 'home' ? (
         <main className="flex-1">
@@ -226,6 +230,7 @@ const CustomerWeb = () => {
             products={products} 
             onBack={() => setViewState('home')} 
             onAdd={addToCart} 
+            isViewMode={isViewMode}
           />
         </main>
       ) : null}
@@ -234,17 +239,19 @@ const CustomerWeb = () => {
       <Footer globalSettings={globalSettings} />
 
       {/* Carrito */}
-      <CartDrawer 
-        isOpen={isCartOpen} 
-        onClose={() => setIsCartOpen(false)} 
-        cart={cart}
-        onUpdateQuantity={updateQuantity}
-        onEmptyCart={emptyCart}
-        onAdd={addToCart}
-        globalSettings={globalSettings}
-        orderType={orderType}
-        setOrderType={setOrderType}
-      />
+      {!isViewMode && (
+        <CartDrawer 
+          isOpen={isCartOpen} 
+          onClose={() => setIsCartOpen(false)} 
+          cart={cart}
+          onUpdateQuantity={updateQuantity}
+          onEmptyCart={emptyCart}
+          onAdd={addToCart}
+          globalSettings={globalSettings}
+          orderType={orderType}
+          setOrderType={setOrderType}
+        />
+      )}
     </div>
   );
 };

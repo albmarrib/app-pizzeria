@@ -7,8 +7,8 @@ export default async function handler(req, res) {
 
   const { amount, connectedAccountId } = req.body;
   
-  if (!amount || !connectedAccountId) {
-    return res.status(400).json({ error: 'Missing amount or connectedAccountId' });
+  if (!amount) {
+    return res.status(400).json({ error: 'Missing amount' });
   }
 
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_PLACEHOLDER_MOCK';

@@ -13,7 +13,6 @@ const ConfigGeneral = () => {
     legalNif: '',
     legalAddress: '',
     stripeEnabled: false,
-    stripeAccountId: '',
     stripeSurchargeType: 'percentage', // 'percentage' o 'fixed'
     stripeSurchargeValue: 0,
     deliveryFee: 2.50,
@@ -34,7 +33,6 @@ const ConfigGeneral = () => {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [activeTab, setActiveTab] = useState('fidelidad');
-  const [stripeConnecting, setStripeConnecting] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -46,13 +44,6 @@ const ConfigGeneral = () => {
         
         const catSnap = await getDocs(collection(db, 'categories'));
         setCategories(catSnap.docs.map(d => d.data().name));
-
-        // Check for Stripe OAuth callback
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        if (code) {
-          handleStripeCallback(code);
-        }
       } catch (error) {
         console.error("Error fetching settings:", error);
       } finally {
@@ -147,40 +138,7 @@ const ConfigGeneral = () => {
     }
   };
 
-  const handleStripeCallback = async (code) => {
-    try {
-      setStripeConnecting(true);
-      const res = await fetch('/api/stripe-connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
-      });
-      const data = await res.json();
-      if (data.connectedAccountId) {
-        const newSettings = { ...settings, stripeAccountId: data.connectedAccountId };
-        setSettings(newSettings);
-        await setDoc(doc(db, 'settings', 'general'), newSettings, { merge: true });
-        alert('¡Cuenta de Stripe vinculada con éxito!');
-        // Clean URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } else {
-        throw new Error(data.error || 'Error desconocido');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Error conectando con Stripe: ' + err.message);
-    } finally {
-      setStripeConnecting(false);
-    }
-  };
-
-  const handleConnectStripe = () => {
-    const clientId = import.meta.env.VITE_STRIPE_CLIENT_ID || 'ca_PLACEHOLDER';
-    const redirectUri = window.location.origin + window.location.pathname;
-    window.location.href = `https://connect.stripe.com/oauth/authorize?response_type=code&client_id=${clientId}&scope=read_write&redirect_uri=${redirectUri}`;
-  };
-
-  if (loading) return <div className="p-8 text-center text-gray-500">Cargando configuración...</div>;
+  const handleFactoryReset = async () => {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
@@ -343,22 +301,7 @@ const ConfigGeneral = () => {
                 
                 {settings.stripeEnabled && (
                   <div className="pt-4 border-t border-blue-200 space-y-4">
-                    <div>
-                      <h4 className="font-bold text-sm text-gray-700 mb-2">Conexión con el Banco</h4>
-                      {settings.stripeAccountId ? (
-                        <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200">
-                          <CheckCircle2 className="w-5 h-5 text-green-500" />
-                          <span className="text-sm font-medium text-gray-700">Cuenta Vinculada: <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{settings.stripeAccountId}</span></span>
-                          <button type="button" onClick={() => setSettings({...settings, stripeAccountId: ''})} className="ml-auto text-xs text-red-500 hover:underline">Desvincular</button>
-                        </div>
-                      ) : (
-                        <button type="button" onClick={handleConnectStripe} disabled={stripeConnecting} className="bg-[#635BFF] text-white font-bold px-6 py-3 rounded-xl shadow-sm hover:bg-[#4B45D6] transition-colors w-full sm:w-auto">
-                          {stripeConnecting ? 'Conectando...' : 'Conectar Banco de la Pizzería'}
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="pt-4">
+                    <div className="pt-2">
                       <h4 className="font-bold text-sm text-gray-700 mb-2">Comisión / Recargo al Cliente</h4>
                       <p className="text-xs text-gray-500 mb-3">Puedes cobrar un extra a los clientes que elijan pagar online para compensar las comisiones del banco.</p>
                       

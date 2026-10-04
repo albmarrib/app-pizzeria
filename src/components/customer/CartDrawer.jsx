@@ -137,7 +137,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
   let total = subtotal + (orderType === 'delivery' ? deliveryFee : 0);
   
   // Calcular recargo de Stripe
-  const hasStripe = globalSettings?.stripeEnabled && globalSettings?.stripeAccountId;
+  const hasStripe = globalSettings?.stripeEnabled;
   let stripeSurcharge = 0;
   if (showOnlinePayment && hasStripe) {
     if (globalSettings.stripeSurchargeType === 'fixed') {
@@ -794,7 +794,6 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                   </button>
                   <StripeCheckout 
                     amount={total} 
-                    connectedAccountId={globalSettings.stripeAccountId}
                     createPendingOrder={createPendingOrder}
                     onPaymentSuccess={async (paymentIntent, pendingOrderId) => {
                       // Solo para pagos exitosos SIN redirección bancaria

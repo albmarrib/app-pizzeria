@@ -76,7 +76,7 @@ const CheckoutForm = ({ amount, createPendingOrder, onPaymentSuccess, onPaymentE
   );
 };
 
-const StripeCheckout = ({ amount, connectedAccountId, createPendingOrder, onPaymentSuccess, onPaymentError }) => {
+const StripeCheckout = ({ amount, createPendingOrder, onPaymentSuccess, onPaymentError }) => {
   const [clientSecret, setClientSecret] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -87,7 +87,7 @@ const StripeCheckout = ({ amount, connectedAccountId, createPendingOrder, onPaym
         const res = await fetch('/api/create-payment-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount, connectedAccountId })
+          body: JSON.stringify({ amount })
         });
         const data = await res.json();
         if (data.clientSecret) {
@@ -102,7 +102,7 @@ const StripeCheckout = ({ amount, connectedAccountId, createPendingOrder, onPaym
       }
     };
     createIntent();
-  }, [amount, connectedAccountId, onPaymentError]);
+  }, [amount, onPaymentError]);
 
   if (loading) return <div className="p-4 text-center text-sm text-gray-500 font-bold animate-pulse">Conectando pasarela segura...</div>;
   if (!clientSecret) return <div className="p-4 text-center text-red-500 text-sm">Error cargando Stripe</div>;

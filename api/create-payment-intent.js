@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { amount, connectedAccountId } = req.body;
+  const { amount } = req.body;
   
   if (!amount) {
     return res.status(400).json({ error: 'Missing amount' });
@@ -22,9 +22,6 @@ export default async function handler(req, res) {
     };
 
     const requestOptions = {};
-    if (connectedAccountId) {
-      requestOptions.stripeAccount = connectedAccountId;
-    }
 
     const paymentIntent = await stripe.paymentIntents.create(intentParams, requestOptions);
 

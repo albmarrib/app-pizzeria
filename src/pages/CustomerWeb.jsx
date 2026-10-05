@@ -115,7 +115,7 @@ const CustomerWeb = () => {
       
       {viewState === 'home' ? (
         <main className="flex-1">
-          <Hero onViewMenu={handleViewMenuFromHome} orderType={orderType} setOrderType={setOrderType} globalSettings={globalSettings} />
+          <Hero onViewMenu={handleViewMenuFromHome} orderType={orderType} setOrderType={setOrderType} globalSettings={globalSettings} isViewMode={isViewMode} />
           
           {/* Storytelling Section 1: Concept */}
           <section className="py-24 text-center px-4 bg-zinc-900 bg-noise">

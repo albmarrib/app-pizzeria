@@ -19,13 +19,20 @@ const ProductCard = ({ product, onClick, isViewMode }) => {
             className="w-full h-full object-cover"
           />
         </div>
-        <div className="p-5 flex-1 flex flex-col">
-          <h3 className="text-2xl font-black text-gray-900 leading-tight mb-2">
-            {product.name}
-          </h3>
-          <p className="text-gray-500 text-base leading-relaxed">
-            {product.description}
-          </p>
+        <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-black text-gray-900 leading-tight mb-1 line-clamp-2">
+              {product.name}
+            </h3>
+            <p className="text-gray-500 text-xs sm:text-sm leading-snug line-clamp-2">
+              {product.description}
+            </p>
+          </div>
+          <div className="mt-3 flex justify-between items-end">
+            <span className="text-base font-black text-gray-900 bg-gray-100 px-3 py-1 rounded-lg">
+              {product.price.toFixed(2)}€
+            </span>
+          </div>
         </div>
       </div>
     );

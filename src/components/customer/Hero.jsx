@@ -32,30 +32,32 @@ const Hero = ({ onViewMenu, orderType, setOrderType, globalSettings }) => {
         </h1>
         
         {/* Type Selector (Smaller) */}
-        <div className="bg-white/10 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl flex flex-row gap-1 w-full max-w-md mx-auto border border-white/20 mb-8">
-          <button 
-            onClick={() => setOrderType('delivery')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-sm transition-all duration-300 ${
-              orderType === 'delivery' 
-                ? 'bg-red-600 text-white shadow-lg shadow-red-600/40' 
-                : 'text-white hover:bg-white/20'
-            }`}
-          >
-            <MapPin className="w-4 h-4" />
-            Entrega a Domicilio
-          </button>
-          <button 
-            onClick={() => setOrderType('pickup')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-sm transition-all duration-300 ${
-              orderType === 'pickup' 
-                ? 'bg-red-600 text-white shadow-lg shadow-red-600/40' 
-                : 'text-white hover:bg-white/20'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            Recoger en tienda
-          </button>
-        </div>
+        {!isViewMode && (
+          <div className="bg-white/10 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl flex flex-row gap-1 w-full max-w-md mx-auto border border-white/20 mb-8">
+            <button 
+              onClick={() => setOrderType('delivery')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-sm transition-all duration-300 ${
+                orderType === 'delivery' 
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/40' 
+                  : 'text-white hover:bg-white/20'
+              }`}
+            >
+              <MapPin className="w-4 h-4" />
+              Entrega a Domicilio
+            </button>
+            <button 
+              onClick={() => setOrderType('pickup')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-sm transition-all duration-300 ${
+                orderType === 'pickup' 
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/40' 
+                  : 'text-white hover:bg-white/20'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              Recoger en tienda
+            </button>
+          </div>
+        )}
 
         {/* Call to action to view the menu */}
         <button 

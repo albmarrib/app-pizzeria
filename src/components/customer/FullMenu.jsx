@@ -75,31 +75,31 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode,
     }
   };
 
-  if (isPosMode) {
+  if (isPosMode || isViewMode) {
     return (
-      <div className="flex h-full bg-gray-50">
+      <div className="flex h-full bg-gray-50 min-h-screen">
         {/* Left Column: Vertical Categories */}
-        <div className="w-[180px] xl:w-[220px] flex-shrink-0 bg-white border-r border-gray-200 overflow-y-auto py-6">
-          <div className="flex flex-col gap-2 px-4">
+        <div className="w-[90px] sm:w-[130px] md:w-[180px] xl:w-[220px] flex-shrink-0 bg-white border-r border-gray-200 overflow-y-auto py-4 sm:py-6 sticky top-0 h-screen">
+          <div className="flex flex-col gap-1 sm:gap-2 px-2 sm:px-4">
             {categories.map((cat) => (
               <button
                 key={cat.name}
                 onClick={() => scrollToCategory(cat.name)}
-                className={`flex items-center gap-3 px-4 py-4 rounded-xl font-bold text-sm transition-all duration-300
+                className={`flex flex-col sm:flex-row items-center sm:items-start gap-1 sm:gap-3 px-2 sm:px-4 py-3 sm:py-4 rounded-xl font-bold text-[10px] sm:text-sm transition-all duration-300
                   ${activeCategory === cat.name 
                     ? 'bg-red-600 text-white shadow-md shadow-red-600/30' 
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }`}
               >
-                {getCategoryIcon(cat.name)}
-                <span className="text-left leading-tight">{cat.name}</span>
+                <div className="shrink-0">{getCategoryIcon(cat.name)}</div>
+                <span className="text-center sm:text-left leading-tight line-clamp-2">{cat.name}</span>
               </button>
             ))}
           </div>
         </div>
 
         {/* Right Column: Products Grid */}
-        <div className="flex-1 h-full overflow-y-auto pb-24 px-6 pt-6" id="pos-scroll-container">
+        <div className="flex-1 h-screen overflow-y-auto pb-24 px-3 sm:px-6 pt-4 sm:pt-6" id="pos-scroll-container">
           {categories.filter(cat => cat.name === activeCategory).map((cat) => (
             <section key={cat.name} id={`category-${cat.name}`}>
               <div className="flex items-center gap-4 mb-6">

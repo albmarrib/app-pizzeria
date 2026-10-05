@@ -1,7 +1,36 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 
-const ProductCard = ({ product, onClick }) => {
+const ProductCard = ({ product, onClick, isViewMode }) => {
+  if (isViewMode) {
+    return (
+      <div className={`bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full relative ${product.outOfStock ? 'opacity-60' : ''}`}>
+        {product.outOfStock && (
+          <div className="absolute inset-0 bg-white/40 z-20 flex items-center justify-center">
+            <div className="bg-red-600 text-white font-black px-4 py-2 rounded-xl text-xl rotate-[-10deg] shadow-lg uppercase tracking-widest border-2 border-red-700">
+              Agotado
+            </div>
+          </div>
+        )}
+        <div className="w-full aspect-video relative overflow-hidden bg-gray-100 shrink-0">
+          <img 
+            src={product.imageUrl} 
+            alt={product.name} 
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div className="p-5 flex-1 flex flex-col">
+          <h3 className="text-2xl font-black text-gray-900 leading-tight mb-2">
+            {product.name}
+          </h3>
+          <p className="text-gray-500 text-base leading-relaxed">
+            {product.description}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       onClick={product.outOfStock ? undefined : onClick}

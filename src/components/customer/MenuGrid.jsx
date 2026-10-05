@@ -43,6 +43,7 @@ const MenuGrid = ({ products, onAdd, isTableMode, isPosMode, isViewMode }) => {
             key={product.id} 
             product={product} 
             onClick={() => handleProductClick(product)} 
+            isViewMode={isViewMode}
           />
         ))}
       </div>

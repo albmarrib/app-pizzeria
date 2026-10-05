@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, Clock, MenuSquare, Pizza } from 'lucide-react';
 
-const Hero = ({ onViewMenu, orderType, setOrderType, globalSettings }) => {
+const Hero = ({ onViewMenu, orderType, setOrderType, globalSettings, isViewMode }) => {
   const pizzeriaName = globalSettings?.pizzeriaName || "";
   const nameParts = pizzeriaName.split(' ');
   const firstName = nameParts[0];

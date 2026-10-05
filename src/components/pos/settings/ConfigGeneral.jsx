@@ -137,9 +137,7 @@ const ConfigGeneral = () => {
       setSaving(false);
     }
   };
-
-  const handleFactoryReset = async () => {
-
+  if (loading) return <div className="p-8 text-center text-gray-500">Cargando configuración...</div>;
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
       <div className="flex items-center gap-3 mb-8 border-b border-gray-100 pb-4">

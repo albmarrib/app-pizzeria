@@ -2,7 +2,7 @@ import React from 'react';
 import { ShoppingCart, Menu, User, Pizza } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const Navbar = ({ cartCount, onCartClick, globalSettings }) => {
+const Navbar = ({ cartCount, onCartClick, globalSettings, isViewMode }) => {
   const navigate = useNavigate();
 
   const handlePosAccess = () => {

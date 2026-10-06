@@ -4,6 +4,7 @@ import POSDashboard from './pages/POSDashboard';
 import DeliveryDriver from './pages/DeliveryDriver';
 import OrderTracking from './pages/OrderTracking';
 import InvoiceRequest from './pages/InvoiceRequest';
+import LegalPage from './pages/LegalPage';
 import './App.css'; // Mantenemos si hay estilos específicos
 
 function App() {
@@ -22,6 +23,9 @@ function App() {
         {/* Tracking & Factura */}
         <Route path="/pedido/:orderId" element={<OrderTracking />} />
         <Route path="/factura/:orderId" element={<InvoiceRequest />} />
+        
+        {/* Páginas Legales */}
+        <Route path="/legal/:type" element={<LegalPage />} />
       </Routes>
     </BrowserRouter>
   );

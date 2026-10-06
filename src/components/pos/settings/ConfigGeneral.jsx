@@ -7,7 +7,12 @@ import { Save, Info, MapPin, Store, Clock, Upload, X, User, FileText, CheckCircl
 const ConfigGeneral = () => {
   const [settings, setSettings] = useState({
     pizzeriaName: '',
+    email: '',
     phone: '',
+    whatsapp: '',
+    instagram: '',
+    facebook: '',
+    schedule: '',
     address: '',
     legalName: '',
     legalNif: '',
@@ -195,8 +200,39 @@ const ConfigGeneral = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Dirección Física (Origen)</label>
-                <textarea name="originAddress" value={settings.originAddress} onChange={handleChange} rows="2" className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none resize-none" />
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Dirección Física (Pública)</label>
+                <textarea name="address" value={settings.address || ''} onChange={handleChange} rows="2" className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none resize-none" placeholder="Carrer Molins, nº4 17230 Palamos" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Horario Público</label>
+                <textarea name="schedule" value={settings.schedule || ''} onChange={handleChange} rows="3" className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none resize-none" placeholder="Lunes - Jueves: 13:00 - 23:30&#10;Viernes - Domingo: 13:00 - 00:30" />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-gray-100">
+            <h4 className="font-bold text-sm text-gray-700 mb-4">Contacto y Redes (Web Pública)</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
+                <input type="email" name="email" value={settings.email || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none text-sm" placeholder="Ej: info@pizzeria.com" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Teléfono</label>
+                <input type="text" name="phone" value={settings.phone || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none text-sm" placeholder="Ej: 900 123 456" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">WhatsApp (Número)</label>
+                <input type="text" name="whatsapp" value={settings.whatsapp || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none text-sm" placeholder="Ej: 34600000000" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Instagram URL</label>
+                <input type="text" name="instagram" value={settings.instagram || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none text-sm" placeholder="https://instagram.com/..." />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Facebook URL</label>
+                <input type="text" name="facebook" value={settings.facebook || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-500 outline-none text-sm" placeholder="https://facebook.com/..." />
               </div>
             </div>
           </div>

@@ -13,59 +13,20 @@ const getCategoryIcon = (catName) => {
   return <Utensils className="w-5 h-5" />; // default
 };
 
-const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode, isViewMode }) => {
-  const [activeCategory, setActiveCategory] = useState(categories[0]?.name || '');
+const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode, isViewMode, initialCategory }) => {
+  const [activeCategory, setActiveCategory] = useState(initialCategory || categories[0]?.name || '');
 
-  // Opcional: Implementar scroll spy para cambiar la categoría activa automáticamente
   useEffect(() => {
-    const handleScroll = () => {
-      const sections = categories.map(cat => document.getElementById(`category-${cat.name}`));
-      let current = activeCategory;
-      
-      const container = isPosMode ? document.getElementById('pos-scroll-container') : window;
-      const offset = isPosMode ? 100 : 200;
-
-      for (const section of sections) {
-        if (section) {
-          const rect = section.getBoundingClientRect();
-          // Adjust intersection calculation depending on mode
-          if (isPosMode) {
-             const containerRect = document.getElementById('pos-scroll-container').getBoundingClientRect();
-             const relativeTop = rect.top - containerRect.top;
-             if (relativeTop <= offset && relativeTop + rect.height >= offset) {
-                current = section.id.replace('category-', '');
-                break;
-             }
-          } else {
-             if (rect.top <= offset && rect.bottom >= offset) {
-               current = section.id.replace('category-', '');
-               break;
-             }
-          }
-        }
-      }
-      
-      if (current !== activeCategory) {
-        setActiveCategory(current);
-      }
-    };
-
-    const container = isPosMode ? null : window;
-    if (container) {
-       container.addEventListener('scroll', handleScroll);
-       return () => container.removeEventListener('scroll', handleScroll);
+    if (initialCategory) {
+      setActiveCategory(initialCategory);
     }
-  }, [categories, activeCategory, isPosMode]);
+  }, [initialCategory]);
 
   const scrollToCategory = (catName) => {
     setActiveCategory(catName);
     
     if (!isPosMode) {
-      const el = document.getElementById(`category-${catName}`);
-      if (el) {
-        const y = el.getBoundingClientRect().top + window.scrollY - 140;
-        window.scrollTo({ top: y, behavior: 'smooth' });
-      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       // In POS mode, scroll to top of the container since content replaces
       const container = document.getElementById('pos-scroll-container');
@@ -158,7 +119,7 @@ const FullMenu = ({ categories, products, onBack, onAdd, isPosMode, isTableMode,
 
       {/* Contenido del Menú por Secciones */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 space-y-16">
-        {categories.map((cat) => (
+        {categories.filter(cat => cat.name === activeCategory).map((cat) => (
           <section key={cat.name} id={`category-${cat.name}`} className="scroll-mt-40">
             <div className="flex items-center gap-4 mb-8">
               <h2 className="text-3xl md:text-5xl font-black text-gray-900 uppercase tracking-tight">{cat.name}</h2>

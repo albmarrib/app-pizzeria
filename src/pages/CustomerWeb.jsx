@@ -27,8 +27,9 @@ const CustomerWeb = () => {
   const urlParams = new URLSearchParams(window.location.search);
   const isViewMode = urlParams.get('mode') === 'view';
 
-  // 'home' o nombre de la categoría (ej: 'Pizzas', 'Entrantes')
+  // 'home' o 'menu'
   const [viewState, setViewState] = useState('home'); 
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   // Referencia para scroll suave
   const menuSectionRef = useRef(null);
@@ -90,23 +91,15 @@ const CustomerWeb = () => {
   // Categorías ya se cargan de Firebase, eliminamos la lógica derivada
 
   const handleViewMenuFromHome = () => {
+    setSelectedCategory(categories[0]?.name || '');
     setViewState('menu');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleOpenCategory = (catName) => {
-    // Cuando hacen click en una categoría de la home, abrimos el menú
-    // En FullMenu.jsx el scroll spy o un prop podría hacer scroll, 
-    // pero por ahora abrimos la carta entera.
+    setSelectedCategory(catName);
     setViewState('menu');
-    // Pequeño timeout para dar tiempo a renderizar
-    setTimeout(() => {
-      const el = document.getElementById(`category-${catName}`);
-      if (el) {
-        const y = el.getBoundingClientRect().top + window.scrollY - 140;
-        window.scrollTo({ top: y, behavior: 'smooth' });
-      }
-    }, 100);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -231,6 +224,7 @@ const CustomerWeb = () => {
             onBack={() => setViewState('home')} 
             onAdd={addToCart} 
             isViewMode={isViewMode}
+            initialCategory={selectedCategory}
           />
         </main>
       ) : null}

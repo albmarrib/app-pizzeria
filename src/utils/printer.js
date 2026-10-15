@@ -212,8 +212,13 @@ export const printOrderSummary = (order, settings) => {
     `;
   });
 
-  const total = order.total || 0;
-  const paidAmount = order.paidAmount || 0;
+  const itemsSubtotal = (order.items || []).reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
+  const total = Number(order.total || 0);
+  const originalTotal = Number(order.originalTotal || (order.discount ? total + Number(order.discount) : (itemsSubtotal > 0 ? itemsSubtotal : total)));
+  const discount = Number(order.discount || (originalTotal > total + 0.009 ? originalTotal - total : 0));
+  const hasDiscount = discount > 0.009;
+
+  const paidAmount = Number(order.paidAmount || 0);
   const remainingAmount = Math.max(0, total - paidAmount);
 
   const htmlContent = `
@@ -232,8 +237,23 @@ export const printOrderSummary = (order, settings) => {
       </div>
 
       <div class="s-totals">
-        <div class="s-total-line">
-          <span>TOTAL:</span>
+        ${hasDiscount ? `
+          <div class="s-total-line s-original-price">
+            <span>PRECIO TEÓRICO:</span>
+            <span>${originalTotal.toFixed(2)}€</span>
+          </div>
+          <div class="s-total-line s-discount-badge">
+            <span>DESCUENTO APLICADO:</span>
+            <span>-${discount.toFixed(2)}€</span>
+          </div>
+          ${order.discountReason ? `
+            <div class="s-meta-small" style="text-align: right; margin-bottom: 4px; font-weight: bold; color: #333;">
+              * Motivo: ${order.discountReason}
+            </div>
+          ` : ''}
+        ` : ''}
+        <div class="s-total-line s-final-total">
+          <span>TOTAL A PAGAR:</span>
           <span>${total.toFixed(2)}€</span>
         </div>
         ${paidAmount > 0 ? `
@@ -273,6 +293,9 @@ export const printOrderSummary = (order, settings) => {
       .s-price { font-weight: bold; width: 60px; text-align: right; }
       .s-totals { margin-bottom: 12px; }
       .s-total-line { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+      .s-original-price { font-size: 14px; color: #555; text-decoration: line-through; }
+      .s-discount-badge { font-size: 15px; font-weight: 900; color: #000; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 6px; }
+      .s-final-total { font-size: 20px; font-weight: 900; }
       .s-paid { color: #555; font-size: 14px; }
       .s-remaining { font-size: 20px; font-weight: 900; margin-top: 4px; border-top: 1px solid #000; padding-top: 4px; }
       .s-footer { text-align: center; font-size: 12px; font-style: italic; border-top: 1px solid #000; padding-top: 8px; }

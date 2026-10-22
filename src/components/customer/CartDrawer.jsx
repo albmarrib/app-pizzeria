@@ -183,31 +183,63 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
       }
     }
 
-    if (orderType === 'delivery') {
-      if (!customerInfo.address.trim() || !customerInfo.phone.trim() || !customerInfo.postalCode.trim() || (!isPosMode && (!customerInfo.name.trim() || !customerInfo.email.trim()))) {
-        alert(isPosMode ? "Por favor, rellena teléfono, dirección y código postal." : "Por favor, rellena nombre, email, teléfono, dirección y código postal.");
+    if (!isPosMode) {
+      // Pedidos realizados desde la WEB (tanto Recogida en Local como Entrega a Domicilio)
+      const phoneVal = (customerInfo.phone || '').trim();
+      const phoneDigits = phoneVal.replace(/\D/g, '');
+
+      if (!phoneVal) {
+        alert("El número de teléfono es OBLIGATORIO para realizar el pedido (tanto para recogida en local como para entrega a domicilio).");
         return false;
       }
-      // Validación real de SaaS
-      const docSnap = await getDoc(doc(db, 'settings', 'general'));
-      const settings = docSnap.exists() ? docSnap.data() : {};
-      
-      if (settings.deliveryType === 'postal_codes') {
-        const validCodes = (settings.postalCodes || '').split(',').map(c => c.trim());
-        if (!validCodes.includes(customerInfo.postalCode.trim())) {
-          alert(`Lo sentimos, no repartimos en el código postal ${customerInfo.postalCode}.`);
+
+      if (phoneDigits.length < 9) {
+        alert("Por favor, introduce un número de teléfono válido (mínimo 9 dígitos).");
+        return false;
+      }
+
+      if (!customerInfo.name || !customerInfo.name.trim()) {
+        alert("Por favor, introduce tu nombre.");
+        return false;
+      }
+
+      if (!customerInfo.email || !customerInfo.email.trim()) {
+        alert("Por favor, introduce tu correo electrónico.");
+        return false;
+      }
+
+      if (orderType === 'delivery') {
+        if (!customerInfo.address || !customerInfo.address.trim()) {
+          alert("Por favor, introduce la dirección completa para el reparto a domicilio.");
           return false;
+        }
+        if (!customerInfo.postalCode || !customerInfo.postalCode.trim()) {
+          alert("Por favor, introduce el código postal para el reparto.");
+          return false;
+        }
+
+        // Validación de zona de reparto por código postal
+        const docSnap = await getDoc(doc(db, 'settings', 'general'));
+        const settings = docSnap.exists() ? docSnap.data() : {};
+        
+        if (settings.deliveryType === 'postal_codes') {
+          const validCodes = (settings.postalCodes || '').split(',').map(c => c.trim());
+          if (!validCodes.includes(customerInfo.postalCode.trim())) {
+            alert(`Lo sentimos, no repartimos en el código postal ${customerInfo.postalCode}.`);
+            return false;
+          }
         }
       }
-    } else if (orderType === 'pickup') {
-      if (isPosMode) {
-        if (!customerInfo.name.trim() && !customerInfo.phone.trim()) {
-          alert("Para pedidos a recoger, debes introducir al menos un nombre o un teléfono para poder identificarlo.");
+    } else {
+      // Modo POS / TPV en local
+      if (orderType === 'delivery') {
+        if (!customerInfo.address.trim() || !customerInfo.phone.trim() || !customerInfo.postalCode.trim()) {
+          alert("Por favor, rellena teléfono, dirección y código postal.");
           return false;
         }
-      } else {
-        if (!customerInfo.name.trim() || !customerInfo.email.trim() || !customerInfo.phone.trim()) {
-          alert("El nombre, email y teléfono son obligatorios para recoger en tienda.");
+      } else if (orderType === 'pickup') {
+        if (!customerInfo.name.trim() && !customerInfo.phone.trim()) {
+          alert("Para pedidos a recoger, debes introducir al menos un nombre o un teléfono para poder identificarlo.");
           return false;
         }
       }
@@ -608,7 +640,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                     <Phone className="h-5 w-5" />
                   </div>
-                  <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder={orderType === 'delivery' ? "Teléfono" : (isPosMode ? (orderType === 'pickup' ? "Teléfono (Obligatorio si no hay nombre)" : "Teléfono (Opcional)") : "Teléfono de contacto")} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
+                  <input type="tel" name="phone" value={customerInfo.phone} onChange={handleInputChange} placeholder={!isPosMode ? "Teléfono de contacto * (Obligatorio)" : (orderType === 'delivery' ? "Teléfono (Obligatorio)" : (orderType === 'pickup' ? "Teléfono (Obligatorio si no hay nombre)" : "Teléfono (Opcional)"))} className="pl-10 w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-gray-50 focus:bg-white" />
                 </div>
                 
                 {/* Fidelidad: Aviso de Premio */}

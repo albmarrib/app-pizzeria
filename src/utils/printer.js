@@ -81,7 +81,8 @@ export const printDeliveryLabel = (order, settings, specificItemIndex = null) =>
           </div>
         ` : `
           <div class="delivery-info">
-            <b>Cliente:</b> ${order.customerInfo?.name || 'Cliente'}
+            <b>Cliente:</b> ${order.customerInfo?.name || 'Cliente'}<br>
+            ${order.customerInfo?.phone ? `<b>Tel:</b> ${order.customerInfo.phone}` : ''}
           </div>
         `}
 
@@ -155,6 +156,7 @@ export const printKitchenTicket = (order, settings, newItemsOnly = null) => {
         <div class="k-dest ${order.orderType}">${destinationHeader}</div>
         <div class="k-meta">PEDIDO #${orderIdShort} • ${dateStr}</div>
         ${order.customerInfo?.name ? `<div class="k-meta" style="font-size:18px;">CLIENTE: ${order.customerInfo.name}</div>` : ''}
+        ${order.customerInfo?.phone ? `<div class="k-meta" style="font-size:18px; font-weight:900;">TEL: ${order.customerInfo.phone}</div>` : ''}
       </div>
       
       <div class="k-items-list">

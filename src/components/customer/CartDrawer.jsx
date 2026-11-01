@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Plus, Minus, X, ArrowRight, Store, Trash2, CreditCard, Apple, Phone, User, MapPin, Gift, Utensils } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, ArrowRight, Store, Trash2, CreditCard, Apple, Phone, User, MapPin, Gift, Utensils, Bike } from 'lucide-react';
 import StripeCheckout from './StripeCheckout';
 import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/config';
@@ -38,6 +38,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
 
   const [globalSettings, setGlobalSettings] = useState({});
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderCode, setOrderCode] = useState('');
   
@@ -136,8 +137,8 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
   
   let total = subtotal + (orderType === 'delivery' ? deliveryFee : 0);
   
-  // Calcular recargo de Stripe
-  const hasStripe = globalSettings?.stripeEnabled;
+  // Pagos remotos (Stripe) totalmente desactivados para la web de clientes
+  const hasStripe = false;
   let stripeSurcharge = 0;
   if (showOnlinePayment && hasStripe) {
     if (globalSettings.stripeSurchargeType === 'fixed') {
@@ -383,11 +384,20 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
   };
 
   const handleCheckout = async (paymentMethodMock = 'cash') => {
+    // Bloqueo síncrono instantáneo contra clics múltiples repetidos
+    if (isSubmittingRef.current || isCheckingOut) return;
     if (cart.length === 0) return;
-    const isValid = await validateOrder();
-    if (!isValid) return;
 
+    isSubmittingRef.current = true;
     setIsCheckingOut(true);
+
+    const isValid = await validateOrder();
+    if (!isValid) {
+      isSubmittingRef.current = false;
+      setIsCheckingOut(false);
+      return;
+    }
+
     try {
       const isOpeningCheckout = paymentMethodMock === 'open_checkout';
       const actualPaymentMock = isOpeningCheckout ? 'pending' : paymentMethodMock;
@@ -412,6 +422,8 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
           const fullOrderSnap = await getDoc(docRef);
           onOrderCompleted({ action: 'checkout', order: { id: fullOrderSnap.id, ...fullOrderSnap.data() } });
         }
+        isSubmittingRef.current = false;
+        setIsCheckingOut(false);
         return;
       }
 
@@ -422,17 +434,21 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
       // En POS cerramos rápido
       setTimeout(() => {
         handleClose();
+        isSubmittingRef.current = false;
+        setIsCheckingOut(false);
       }, 2000);
       
     } catch (error) {
       console.error("Error creating order: ", error);
       alert("Hubo un error al procesar tu pedido: " + (error.message || "Desconocido"));
-    } finally {
+      isSubmittingRef.current = false;
       setIsCheckingOut(false);
     }
   };
 
   const handleClose = () => {
+    isSubmittingRef.current = false;
+    setIsCheckingOut(false);
     setOrderSuccess(false);
     setStep(1);
     setOrderCode('');
@@ -818,7 +834,7 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
               </div>
 
               {/* Contenedor de Stripe dentro de la zona con scroll */}
-              {showOnlinePayment && (
+              {showOnlinePayment && hasStripe && (
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                   <button onClick={() => setShowOnlinePayment(false)} className="text-sm text-gray-500 font-bold hover:text-gray-900 flex items-center w-full mb-2">
                     <ArrowRight className="w-4 h-4 mr-1 rotate-180" />
@@ -892,27 +908,23 @@ const CartDrawer = ({ isOpen, onClose, cart, onUpdateQuantity, onEmptyCart, onAd
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {orderType === 'pickup' && (
-                    <div className="text-xs text-center text-gray-500 font-semibold mb-2">SELECCIONA MÉTODO DE PAGO</div>
-                  )}
-                  {hasStripe && (
-                    <button onClick={() => setShowOnlinePayment(true)} disabled={isCheckingOut} className="w-full bg-[#635BFF] hover:bg-[#4B45D6] text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg disabled:opacity-70">
-                      <CreditCard className="w-5 h-5" />
-                      <span>Pago Seguro Online (Tarjeta / Apple / Google Pay)</span>
-                    </button>
-                  )}
-                  
-                  
                   {orderType === 'pickup' ? (
-                    isPosMode && (
-                      <button onClick={() => handleCheckout('Pago en Local')} disabled={isCheckingOut} className="w-full bg-white border-2 border-gray-200 hover:bg-gray-50 text-gray-900 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70">
-                        <Store className="w-5 h-5" /> <span>Pagar al recoger en Local</span>
-                      </button>
-                    )
+                    <button 
+                      onClick={() => handleCheckout('Pago en Local')} 
+                      disabled={isCheckingOut} 
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-red-600/30 disabled:opacity-70"
+                    >
+                      <Store className="w-5 h-5" />
+                      <span>{isCheckingOut ? 'Procesando...' : 'Confirmar Pedido (Pagar al Recoger en Local)'}</span>
+                    </button>
                   ) : (
-                    <button onClick={() => handleCheckout('Pago a Repartidor')} disabled={isCheckingOut} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-red-600/30 disabled:opacity-70">
-                      <CreditCard className="w-5 h-5" />
-                      <span>Pedir y Pagar al Repartidor</span>
+                    <button 
+                      onClick={() => handleCheckout('Pago a Repartidor')} 
+                      disabled={isCheckingOut} 
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-red-600/30 disabled:opacity-70"
+                    >
+                      <Bike className="w-5 h-5" />
+                      <span>{isCheckingOut ? 'Procesando...' : 'Confirmar Pedido (Pagar al Repartidor)'}</span>
                     </button>
                   )}
                 </div>

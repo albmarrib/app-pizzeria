@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import { BarChart3, Banknote, CreditCard, ShoppingBag, TrendingUp, CheckCircle2, Calendar, ListOrdered, AlertCircle, Download, Receipt, FileText } from 'lucide-react';
+import { BarChart3, Banknote, CreditCard, ShoppingBag, TrendingUp, CheckCircle2, Calendar, ListOrdered, AlertCircle, Download, Receipt, FileText, Printer } from 'lucide-react';
 import StatCard from './StatCard';
-import { printCompletedOrdersReport } from '../../utils/printer';
+import { printCompletedOrdersReport, printClosingTicketZ } from '../../utils/printer';
 
 const StatsPanel = () => {
   const [stats, setStats] = useState({
@@ -12,6 +12,14 @@ const StatsPanel = () => {
     averageTicket: 0,
     cashTotal: 0,
     cardTotal: 0,
+    invoiceTotal: 0,
+    ticketTotal: 0,
+    base10: 0,
+    iva10: 0,
+    base21: 0,
+    iva21: 0,
+    ticketCount: 0,
+    invoiceCount: 0
   });
   
   const [productRanking, setProductRanking] = useState([]);
@@ -83,6 +91,12 @@ const StatsPanel = () => {
       let cardTotal = 0;
       let invoiceTotal = 0;
       let ticketTotal = 0;
+      let base10Total = 0;
+      let iva10Total = 0;
+      let base21Total = 0;
+      let iva21Total = 0;
+      let ticketCount = 0;
+      let invoiceCount = 0;
       let activeCount = 0;
       const productCounts = {};
 
@@ -120,9 +134,35 @@ const StatsPanel = () => {
         
         if (data.invoiceId) {
           invoiceTotal += amount;
+          invoiceCount += 1;
         } else {
           ticketTotal += amount;
+          ticketCount += 1;
         }
+
+        let oTotal10 = 0;
+        let oTotal21 = 0;
+        if (data.items && data.items.length > 0) {
+          data.items.forEach(item => {
+            const tax = Number(item.taxRate) || 10;
+            const itemTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+            if (tax === 21) oTotal21 += itemTotal;
+            else oTotal10 += itemTotal;
+          });
+        } else {
+          oTotal10 = amount;
+        }
+        if (data.deliveryFee) oTotal10 += Number(data.deliveryFee) || 0;
+
+        const b10 = oTotal10 / 1.10;
+        const i10 = oTotal10 - b10;
+        const b21 = oTotal21 / 1.21;
+        const i21 = oTotal21 - b21;
+
+        base10Total += b10;
+        iva10Total += i10;
+        base21Total += b21;
+        iva21Total += i21;
         
         if (data.items) {
           data.items.forEach(item => {
@@ -164,7 +204,13 @@ const StatsPanel = () => {
         cashTotal,
         cardTotal,
         invoiceTotal,
-        ticketTotal
+        ticketTotal,
+        base10: base10Total,
+        iva10: iva10Total,
+        base21: base21Total,
+        iva21: iva21Total,
+        ticketCount,
+        invoiceCount
       });
       setProductRanking(ranking);
       setHasActiveOrders(activeCount > 0);
@@ -177,10 +223,10 @@ const StatsPanel = () => {
   };
 
   const handleCloseRegister = async () => {
-    if (window.confirm('¿Estás seguro de que quieres cerrar la caja del periodo seleccionado? Esta acción guardará los totales mostrados.')) {
+    if (window.confirm('¿Estás seguro de que quieres cerrar la caja del periodo seleccionado? Se guardará el cierre y se emitirá el Ticket Z en la impresora.')) {
       setIsClosing(true);
       try {
-        const docRef = await addDoc(collection(db, 'daily_closings'), {
+        const closingData = {
           date: serverTimestamp(),
           periodStart: startDate,
           periodEnd: endDate,
@@ -188,9 +234,24 @@ const StatsPanel = () => {
           totalOrders: stats.totalOrders,
           cashTotal: stats.cashTotal,
           cardTotal: stats.cardTotal,
-          closedBy: 'Admin', // Static for now, could be derived from auth
-        });
+          base10: stats.base10 || 0,
+          iva10: stats.iva10 || 0,
+          base21: stats.base21 || 0,
+          iva21: stats.iva21 || 0,
+          ticketCount: stats.ticketCount || 0,
+          invoiceCount: stats.invoiceCount || 0,
+          closedBy: 'Admin',
+        };
+
+        const docRef = await addDoc(collection(db, 'daily_closings'), closingData);
+        
+        // Emitir Ticket Z automáticamente
+        printClosingTicketZ({ id: docRef.id, ...closingData, ...stats }, globalSettings);
+
         setClosedSuccess(true);
+        setClosedDocId(docRef.id);
+        setIsAlreadyClosed(true);
+
         // Reiniciar los totales en la vista
         setStats({
           totalSales: 0,
@@ -200,10 +261,14 @@ const StatsPanel = () => {
           cardTotal: 0,
           invoiceTotal: 0,
           ticketTotal: 0,
+          base10: 0,
+          iva10: 0,
+          base21: 0,
+          iva21: 0,
+          ticketCount: 0,
+          invoiceCount: 0
         });
         setProductRanking([]);
-        setIsAlreadyClosed(true);
-        setClosedDocId(docRef.id);
         
         setTimeout(() => setClosedSuccess(false), 5000);
       } catch (error) {
@@ -212,6 +277,28 @@ const StatsPanel = () => {
       } finally {
         setIsClosing(false);
       }
+    }
+  };
+
+  const handleReprintClosingTicketZ = async () => {
+    try {
+      if (closedDocId) {
+        const snap = await getDoc(doc(db, 'daily_closings', closedDocId));
+        if (snap.exists()) {
+          const d = snap.data();
+          printClosingTicketZ({ id: snap.id, ...d }, globalSettings);
+          return;
+        }
+      }
+      printClosingTicketZ({
+        periodStart: startDate,
+        periodEnd: endDate,
+        ...stats,
+        closedBy: 'Admin'
+      }, globalSettings);
+    } catch (err) {
+      console.error(err);
+      alert("Error reimprimiendo Ticket Z");
     }
   };
 
@@ -731,19 +818,33 @@ const StatsPanel = () => {
 
               <div className="flex flex-col items-center border-t border-gray-100 pt-6 mt-4">
                 {isAlreadyClosed ? (
-                  <div className="w-full text-center p-4 bg-gray-100 text-gray-600 rounded-xl font-bold flex flex-col items-center gap-3">
-                    <span>La caja de este periodo ya fue cerrada.</span>
-                    <button 
-                      onClick={handleReopenRegister}
-                      className="text-sm bg-red-100 text-red-600 hover:bg-red-200 px-4 py-2 rounded-lg font-bold transition-colors border border-red-200"
-                    >
-                      Anular Cierre (Modo Pruebas)
-                    </button>
+                  <div className="w-full text-center p-4 bg-gray-50 text-gray-700 rounded-2xl font-bold flex flex-col items-center gap-3 border border-gray-200">
+                    <div className="flex items-center gap-2 text-green-700 bg-green-50 px-4 py-2 rounded-xl border border-green-200 text-sm">
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      <span>La caja de este periodo ya fue cerrada y registrada.</span>
+                    </div>
+                    <div className="flex flex-wrap gap-3 justify-center mt-1">
+                      <button 
+                        onClick={handleReprintClosingTicketZ}
+                        type="button"
+                        className="text-sm bg-gray-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+                      >
+                        <Printer className="w-4 h-4" />
+                        Reimprimir Ticket Z
+                      </button>
+                      <button 
+                        onClick={handleReopenRegister}
+                        type="button"
+                        className="text-sm bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2.5 rounded-xl font-bold transition-colors border border-red-200 cursor-pointer"
+                      >
+                        Anular Cierre (Modo Pruebas)
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
                     <p className="text-sm text-gray-500 text-center mb-4 max-w-lg">
-                      Asegúrate de contar el efectivo en la caja y comprobar que coincide con el "Esperado en Caja". Una vez confirmado, puedes cerrar el día.
+                      Asegúrate de contar el efectivo en la caja y comprobar que coincide con el "Esperado en Caja". Al confirmar, se guardará el registro y se emitirá el Ticket Z en la impresora.
                     </p>
                     {hasActiveOrders ? (
                       <div className="w-full text-center p-4 bg-red-50 text-red-700 rounded-xl font-bold flex flex-col items-center gap-2 border border-red-200">
@@ -755,9 +856,10 @@ const StatsPanel = () => {
                       <button 
                         onClick={handleCloseRegister}
                         disabled={isClosing}
-                        className="w-full md:w-auto bg-black hover:bg-gray-900 text-white font-bold py-4 px-12 rounded-xl transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                        className="w-full md:w-auto bg-black hover:bg-gray-900 text-white font-bold py-4 px-12 rounded-xl transition-colors disabled:opacity-70 flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                       >
-                        {isClosing ? 'Guardando...' : 'Confirmar Cierre de Caja'}
+                        <Printer className="w-5 h-5" />
+                        {isClosing ? 'Cerrando y emitiendo...' : 'Confirmar Cierre y Emitir Ticket Z'}
                       </button>
                     )}
                   </>

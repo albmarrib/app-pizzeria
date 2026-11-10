@@ -349,7 +349,7 @@ export const printCompletedOrdersReport = (completedOrders, stats, settings) => 
     <div class="report-ticket">
       <div class="r-header">
         <div class="r-company">${companyName}</div>
-        <div class="r-title">CIERRE DE CAJA</div>
+        <div class="r-title">LISTADO DE PEDIDOS COMPLETADOS</div>
         <div class="r-meta">FECHA: ${dateStr} ${timeStr}</div>
       </div>
       
@@ -362,7 +362,7 @@ export const printCompletedOrdersReport = (completedOrders, stats, settings) => 
         <div class="r-line r-total"><span>TOTAL ACUMULADO:</span> <span>${stats.totalSales.toFixed(2)}€</span></div>
       </div>
 
-      <div class="r-list-title">PEDIDOS COMPLETADOS</div>
+      <div class="r-list-title">DETALLE DE PEDIDOS</div>
       <div class="r-orders">
         ${ordersHtml}
       </div>
@@ -397,6 +397,151 @@ export const printCompletedOrdersReport = (completedOrders, stats, settings) => 
       .o-total { font-size: 13px; font-weight: bold; text-align: right; border-top: 1px dashed #eee; padding-top: 2px; }
       
       .r-footer { text-align: center; font-size: 12px; margin-top: 12px; }
+    </style>
+  `;
+
+  executePrint(htmlContent, styles);
+};
+
+// 5. Ticket Z - Cierre Diario de Caja Oficial (Formato Térmico 80mm)
+export const printClosingTicketZ = (closingData, settings) => {
+  const companyName = settings?.pizzeriaName || "Moul Pizzeria";
+  const cif = settings?.cif || settings?.nif || "";
+  const address = settings?.address || "";
+  const phone = settings?.phone || "";
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+  const periodStr = closingData.periodStart === closingData.periodEnd 
+    ? closingData.periodStart 
+    : `${closingData.periodStart} al ${closingData.periodEnd}`;
+
+  const closingId = closingData.id ? `Z-${closingData.id.slice(-6).toUpperCase()}` : `Z-${now.getTime().toString().slice(-6)}`;
+  const closedBy = closingData.closedBy || 'Admin';
+
+  const totalOrders = Number(closingData.totalOrders) || 0;
+  const totalSales = Number(closingData.totalSales) || 0;
+  const cashTotal = Number(closingData.cashTotal) || 0;
+  const cardTotal = Number(closingData.cardTotal) || 0;
+
+  const base10 = Number(closingData.base10 || 0);
+  const iva10 = Number(closingData.iva10 || 0);
+  const base21 = Number(closingData.base21 || 0);
+  const iva21 = Number(closingData.iva21 || 0);
+  const totalBase = base10 + base21;
+  const totalIva = iva10 + iva21;
+
+  const formatEuro = (val) => Number(val || 0).toFixed(2).replace('.', ',') + ' €';
+
+  const htmlContent = `
+    <div class="z-ticket">
+      <div class="z-header">
+        <div class="z-company">${companyName}</div>
+        ${cif ? `<div class="z-meta">CIF / NIF: ${cif}</div>` : ''}
+        ${address ? `<div class="z-meta">${address}</div>` : ''}
+        ${phone ? `<div class="z-meta">Tel: ${phone}</div>` : ''}
+        <div class="z-title">INFORME Z - CIERRE DE CAJA</div>
+        <div class="z-ref">REF: #${closingId}</div>
+      </div>
+
+      <div class="z-meta-box">
+        <div class="z-line"><span>FECHA EMISIÓN:</span> <b>${dateStr} ${timeStr}</b></div>
+        <div class="z-line"><span>JORNADA / PERIODO:</span> <b>${periodStr}</b></div>
+        <div class="z-line"><span>RESPONSABLE:</span> <b>${closedBy}</b></div>
+      </div>
+
+      <div class="z-section-title">ACTIVIDAD DE VENTAS</div>
+      <div class="z-block">
+        <div class="z-line"><span>Total Pedidos / Tickets:</span> <b>${totalOrders}</b></div>
+        ${closingData.ticketCount !== undefined ? `<div class="z-line"><span>Tickets Simplificados:</span> <span>${closingData.ticketCount}</span></div>` : ''}
+        ${closingData.invoiceCount !== undefined ? `<div class="z-line"><span>Facturas Nominativas:</span> <span>${closingData.invoiceCount}</span></div>` : ''}
+      </div>
+
+      ${totalBase > 0 ? `
+      <div class="z-section-title">DESGLOSE FISCAL (IVA)</div>
+      <div class="z-block">
+        ${base10 > 0 ? `
+          <div class="z-line"><span>Base Imponible 10%:</span> <span>${formatEuro(base10)}</span></div>
+          <div class="z-line"><span>Cuota IVA 10%:</span> <span>${formatEuro(iva10)}</span></div>
+        ` : ''}
+        ${base21 > 0 ? `
+          <div class="z-line"><span>Base Imponible 21%:</span> <span>${formatEuro(base21)}</span></div>
+          <div class="z-line"><span>Cuota IVA 21%:</span> <span>${formatEuro(iva21)}</span></div>
+        ` : ''}
+        <div class="z-line z-subtotal"><span>TOTAL BASE IMPONIBLE:</span> <b>${formatEuro(totalBase)}</b></div>
+        <div class="z-line z-subtotal"><span>TOTAL CUOTA IVA:</span> <b>${formatEuro(totalIva)}</b></div>
+      </div>
+      ` : ''}
+
+      <div class="z-total-box">
+        <div class="z-total-title">TOTAL VENTAS JORNADA</div>
+        <div class="z-total-amount">${formatEuro(totalSales)}</div>
+      </div>
+
+      <div class="z-section-title">DESGLOSE FORMAS DE PAGO</div>
+      <div class="z-block z-payments">
+        <div class="z-pay-row">
+          <span class="z-pay-label">EFECTIVO EN CAJA:</span>
+          <span class="z-pay-amount">${formatEuro(cashTotal)}</span>
+        </div>
+        <div class="z-pay-row">
+          <span class="z-pay-label">TARJETA / DATÁFONO:</span>
+          <span class="z-pay-amount">${formatEuro(cardTotal)}</span>
+        </div>
+        <div class="z-line z-subtotal" style="margin-top: 6px;">
+          <span>TOTAL COBRADO:</span>
+          <b>${formatEuro(cashTotal + cardTotal)}</b>
+        </div>
+      </div>
+
+      <div class="z-signature-box">
+        <div class="z-sig-line">Firma del Responsable</div>
+      </div>
+
+      <div class="z-footer">
+        <div>*** COMPROBANTE DE CIERRE DIARIO ***</div>
+        <div>Adjuntar a la gestoría junto a los totales del datáfono</div>
+      </div>
+    </div>
+  `;
+
+  const styles = `
+    <style>
+      @page { margin: 0; }
+      body { 
+        margin: 0; 
+        padding: 0; 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Courier New";
+        font-size: 13px; 
+        color: #000; 
+        width: 80mm; 
+      }
+      .z-ticket { padding: 4mm 3mm; box-sizing: border-box; }
+      .z-header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+      .z-company { font-weight: 900; font-size: 20px; text-transform: uppercase; margin-bottom: 3px; }
+      .z-meta { font-size: 11px; color: #333; line-height: 1.3; }
+      .z-title { font-size: 16px; font-weight: 900; margin-top: 8px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; }
+      .z-ref { font-size: 12px; font-weight: bold; margin-top: 4px; }
+      
+      .z-meta-box { border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 8px; }
+      .z-line { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+      
+      .z-section-title { font-size: 12px; font-weight: 900; border-bottom: 1px solid #000; padding-bottom: 2px; margin: 8px 0 4px 0; text-transform: uppercase; }
+      .z-block { padding: 2px 0 6px 0; }
+      .z-subtotal { border-top: 1px dotted #888; padding-top: 4px; margin-top: 4px; }
+      
+      .z-total-box { border: 2px solid #000; padding: 8px 4px; text-align: center; margin: 10px 0; background: #f9f9f9; }
+      .z-total-title { font-size: 12px; font-weight: bold; letter-spacing: 0.5px; }
+      .z-total-amount { font-size: 24px; font-weight: 900; margin-top: 3px; }
+      
+      .z-payments { border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+      .z-pay-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; margin-bottom: 5px; }
+      .z-pay-amount { font-size: 15px; }
+      
+      .z-signature-box { margin-top: 30px; padding-top: 20px; border-top: 1px solid #000; text-align: center; font-size: 11px; }
+      .z-footer { text-align: center; font-size: 10px; margin-top: 12px; border-top: 1px dashed #000; padding-top: 6px; line-height: 1.4; color: #444; }
     </style>
   `;
 

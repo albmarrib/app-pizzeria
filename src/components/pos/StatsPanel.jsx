@@ -256,58 +256,314 @@ const StatsPanel = () => {
       );
       
       const querySnapshot = await getDocs(q);
-      
-      let csvContent = "Fecha,ID Pedido,Metodo Pago,Total IVA 10%,Total IVA 21%,Base Imponible Total,Cuota IVA Total,Total Cobrado,Factura Nominativa\n";
 
+      // Cargar facturas emitidas para cruzar NIF y número oficial
+      const invoicesMap = {};
+      try {
+        const invSnap = await getDocs(collection(db, 'invoices'));
+        invSnap.forEach(invDoc => {
+          const invData = invDoc.data();
+          invoicesMap[invDoc.id] = invData;
+          if (invData.orderId) {
+            invoicesMap[invData.orderId] = invData;
+          }
+        });
+      } catch (errInvoices) {
+        console.warn("No se pudieron precargar facturas nominativas:", errInvoices);
+      }
+
+      const escapeCSV = (val) => {
+        if (val === null || val === undefined) return '';
+        const s = String(val).replace(/\r?\n|\r/g, ' ').trim();
+        if (s.includes(';') || s.includes('"')) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+
+      const formatNum = (num) => {
+        const n = Number(num) || 0;
+        return n.toFixed(2).replace('.', ',');
+      };
+
+      const headers = [
+        "Fecha",
+        "Hora",
+        "Nº Pedido",
+        "ID Interno",
+        "Tipo Documento",
+        "Nº Factura Oficial",
+        "NIF / CIF Cliente",
+        "Cliente / Razón Social",
+        "Tipo Pedido",
+        "Método de Cobro",
+        "Base 10% (€)",
+        "Cuota IVA 10% (€)",
+        "Base 21% (€)",
+        "Cuota IVA 21% (€)",
+        "Total Base Imponible (€)",
+        "Total Cuota IVA (€)",
+        "Total Facturado (€)",
+        "Cobrado Efectivo (€)",
+        "Cobrado Tarjeta (€)"
+      ];
+
+      let grandBase10 = 0;
+      let grandIva10 = 0;
+      let grandBase21 = 0;
+      let grandIva21 = 0;
+      let grandTotalBase = 0;
+      let grandTotalIVA = 0;
+      let grandTotalCobrado = 0;
+      let grandCash = 0;
+      let grandCard = 0;
+
+      // Extraer y ordenar pedidos cronológicamente (antiguos a recientes)
+      const validOrders = [];
       querySnapshot.forEach(docSnap => {
         const orderData = docSnap.data();
         if (orderData.status === 'CANCELED') return;
+        validOrders.push({ id: docSnap.id, ...orderData });
+      });
+
+      validOrders.sort((a, b) => {
+        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeA - timeB;
+      });
+
+      const rows = validOrders.map(orderData => {
+        const createdAtDate = orderData.createdAt?.toDate ? orderData.createdAt.toDate() : (orderData.createdAt ? new Date(orderData.createdAt) : new Date());
+        const dateStr = createdAtDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = createdAtDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
         
+        const shortId = `#${orderData.id.slice(-6).toUpperCase()}`;
+        const inv = orderData.invoiceId ? invoicesMap[orderData.invoiceId] : (invoicesMap[orderData.id] || null);
+        const isFactura = Boolean(inv || orderData.invoiceId);
+        const docType = isFactura ? 'Factura Nominativa' : 'Ticket Simplificado';
+        const invoiceNum = inv?.invoiceNumber || (orderData.invoiceId ? 'Factura Emitida' : '-');
+        const customerNif = inv?.customer?.nif || '-';
+        const customerName = inv?.customer?.businessName || orderData.customerInfo?.name || (orderData.tableNumber ? `Mesa ${orderData.tableNumber}` : 'Cliente Contado');
+        const orderTypeStr = orderData.orderType === 'delivery' ? 'A Domicilio' : (orderData.orderType === 'pickup' ? 'Para Recoger' : 'Local / Mesa');
+
+        let cashAmount = 0;
+        let cardAmount = 0;
+        if (orderData.payments && orderData.payments.length > 0) {
+          orderData.payments.forEach(p => {
+            const amt = Number(p.amount) || 0;
+            if (p.method === 'cash') cashAmount += amt;
+            else cardAmount += amt;
+          });
+        } else {
+          const totalAmt = Number(orderData.total) || 0;
+          if (orderData.paymentMethod === 'cash') {
+            cashAmount = totalAmt;
+          } else {
+            cardAmount = totalAmt;
+          }
+        }
+
+        let methodStr = 'Tarjeta';
+        if (cashAmount > 0 && cardAmount > 0) {
+          methodStr = `Mixto (Ef: ${formatNum(cashAmount)} € / Tarj: ${formatNum(cardAmount)} €)`;
+        } else if (cashAmount > 0) {
+          methodStr = 'Efectivo';
+        } else {
+          methodStr = 'Tarjeta';
+        }
+
         let total10 = 0;
         let total21 = 0;
         let total4 = 0;
         let total0 = 0;
 
-        if (orderData.items) {
+        if (orderData.items && orderData.items.length > 0) {
           orderData.items.forEach(item => {
             const tax = Number(item.taxRate) || 10;
-            const itemTotal = item.price * item.quantity;
+            const itemTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
             if (tax === 10) total10 += itemTotal;
             else if (tax === 21) total21 += itemTotal;
             else if (tax === 4) total4 += itemTotal;
             else if (tax === 0) total0 += itemTotal;
+            else total10 += itemTotal;
           });
+        } else {
+          total10 = Number(orderData.total) || 0;
         }
         
-        if (orderData.deliveryFee) total10 += orderData.deliveryFee;
+        if (orderData.deliveryFee) {
+          total10 += Number(orderData.deliveryFee) || 0;
+        }
 
         const base10 = total10 / 1.10;
         const iva10 = total10 - base10;
         const base21 = total21 / 1.21;
         const iva21 = total21 - base21;
+        const base4 = total4 / 1.04;
+        const iva4 = total4 - base4;
 
-        const totalBase = base10 + base21 + total4/1.04 + total0;
-        const totalIVA = iva10 + iva21 + (total4 - total4/1.04);
-        
-        const dateStr = orderData.createdAt?.toDate().toLocaleDateString('es-ES') || '';
-        const orderId = docSnap.id;
-        const isFactura = orderData.invoiceId ? 'SI' : 'NO';
-        const method = orderData.paymentMethod === 'cash' ? 'Efectivo' : 'Tarjeta';
+        const totalBase = base10 + base21 + base4 + total0;
+        const totalIVA = iva10 + iva21 + iva4;
+        const totalFacturado = Number(orderData.total) || (totalBase + totalIVA);
 
-        csvContent += `${dateStr},${orderId},${method},${total10.toFixed(2)},${total21.toFixed(2)},${totalBase.toFixed(2)},${totalIVA.toFixed(2)},${Number(orderData.total).toFixed(2)},${isFactura}\n`;
+        grandBase10 += base10;
+        grandIva10 += iva10;
+        grandBase21 += base21;
+        grandIva21 += iva21;
+        grandTotalBase += totalBase;
+        grandTotalIVA += totalIVA;
+        grandTotalCobrado += totalFacturado;
+        grandCash += cashAmount;
+        grandCard += cardAmount;
+
+        return [
+          dateStr,
+          timeStr,
+          shortId,
+          orderData.id,
+          escapeCSV(docType),
+          escapeCSV(invoiceNum),
+          escapeCSV(customerNif),
+          escapeCSV(customerName),
+          escapeCSV(orderTypeStr),
+          escapeCSV(methodStr),
+          formatNum(base10),
+          formatNum(iva10),
+          formatNum(base21),
+          formatNum(iva21),
+          formatNum(totalBase),
+          formatNum(totalIVA),
+          formatNum(totalFacturado),
+          formatNum(cashAmount),
+          formatNum(cardAmount)
+        ].join(';');
       });
+
+      const totalsRow = [
+        'TOTALES PERIODO',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        formatNum(grandBase10),
+        formatNum(grandIva10),
+        formatNum(grandBase21),
+        formatNum(grandIva21),
+        formatNum(grandTotalBase),
+        formatNum(grandTotalIVA),
+        formatNum(grandTotalCobrado),
+        formatNum(grandCash),
+        formatNum(grandCard)
+      ].join(';');
+
+      const csvContent = "\uFEFF" + headers.join(';') + '\n' + rows.join('\n') + '\n' + totalsRow + '\n';
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `Contabilidad_Pizzeria_${startDate}_al_${endDate}.csv`);
+      link.setAttribute("download", `Facturacion_Gestoria_${startDate}_al_${endDate}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } catch(err) {
       console.error(err);
-      alert('Error exportando CSV');
+      alert('Error exportando archivo de gestoría');
+    }
+  };
+
+  const handleExportClosingsCSV = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'daily_closings'));
+      if (snap.empty) {
+        alert("No hay registros de cierre de caja guardados.");
+        return;
+      }
+
+      const closings = [];
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.periodStart >= startDate && d.periodStart <= endDate) {
+          closings.push({ id: docSnap.id, ...d });
+        }
+      });
+
+      if (closings.length === 0) {
+        alert("No hay registros de cierre de caja en este rango de fechas.");
+        return;
+      }
+
+      closings.sort((a, b) => (a.periodStart || '').localeCompare(b.periodStart || ''));
+
+      const formatNum = (num) => Number(num || 0).toFixed(2).replace('.', ',');
+      const headers = [
+        "Fecha Arqueo",
+        "Periodo Inicio",
+        "Periodo Fin",
+        "Total Pedidos",
+        "Total Ventas (€)",
+        "Efectivo en Caja (€)",
+        "Tarjeta / Digital (€)",
+        "Cerrado Por"
+      ];
+
+      let grandOrders = 0;
+      let grandSales = 0;
+      let grandCash = 0;
+      let grandCard = 0;
+
+      const rows = closings.map(c => {
+        const dateStr = c.date?.toDate ? c.date.toDate().toLocaleString('es-ES') : '';
+        const sales = Number(c.totalSales) || 0;
+        const cash = Number(c.cashTotal) || 0;
+        const card = Number(c.cardTotal) || 0;
+        const orders = Number(c.totalOrders) || 0;
+
+        grandOrders += orders;
+        grandSales += sales;
+        grandCash += cash;
+        grandCard += card;
+
+        return [
+          dateStr,
+          c.periodStart || '',
+          c.periodEnd || '',
+          orders,
+          formatNum(sales),
+          formatNum(cash),
+          formatNum(card),
+          c.closedBy || 'Admin'
+        ].join(';');
+      });
+
+      const totalsRow = [
+        'TOTALES',
+        '',
+        '',
+        grandOrders,
+        formatNum(grandSales),
+        formatNum(grandCash),
+        formatNum(grandCard),
+        ''
+      ].join(';');
+
+      const csvContent = "\uFEFF" + headers.join(';') + '\n' + rows.join('\n') + '\n' + totalsRow + '\n';
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Cierres_Caja_${startDate}_al_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Error exportando cierres de caja:", err);
+      alert("Hubo un error al exportar los cierres de caja.");
     }
   };
 
@@ -347,10 +603,19 @@ const StatsPanel = () => {
           </button>
           <button 
             onClick={handleExportCSV}
-            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-bold transition-colors ml-2 flex items-center gap-1 border border-blue-200"
+            title="Descargar libro de ventas e IVA para gestoría (Compatible 100% con Excel)"
+            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-sm font-bold transition-colors ml-2 flex items-center gap-1.5 border border-emerald-200 shadow-sm cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            CSV Gestoría
+            Excel Gestoría
+          </button>
+          <button 
+            onClick={handleExportClosingsCSV}
+            title="Descargar historial de cierres diarios de caja para Excel"
+            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm font-bold transition-colors ml-1 flex items-center gap-1.5 border border-blue-200 shadow-sm cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            Cierres de Caja
           </button>
         </div>
       </div>
